@@ -50,33 +50,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit();
     }
     
-  if (isset($_POST['create_survey'])) {
-    $surveyName = $_POST['survey_name'];
-    $surveyType = $_POST['type'];
-    $startDate = !empty($_POST['start_date']) ? $_POST['start_date'] : date('Y-m-d');
-    $endDate = !empty($_POST['end_date']) ? $_POST['end_date'] : null;
-    $isActive = isset($_POST['is_active']) ? 1 : 0;
-    $dhis2Instance = isset($_POST['dhis2_instance']) ? $_POST['dhis2_instance'] : null;
-    
-    try {
-        $pdo->beginTransaction();
-        
-        $stmt = $pdo->prepare("
-            INSERT INTO survey (name, type, start_date, end_date, is_active, dhis2_instance)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ");
-        $stmt->execute([$surveyName, $surveyType, $startDate, $endDate, $isActive, $dhis2Instance]);
-        
-        $pdo->commit();
-        $_SESSION['success_message'] = "Survey created successfully";
-        header("Location: survey.php");
+    if (isset($_POST['create_survey'])) {
+        header("Location: sb.php");
         exit();
-    } catch (Exception $e) {
-        $pdo->rollBack();
-        $_SESSION['error_message'] = "Survey creation failed: " . $e->getMessage();
-        header("Location: survey.php");
-        exit();
-    }
 }
     
     if (isset($_POST['delete_survey'])) {
@@ -174,7 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <!-- Existing Surveys Card -->
             <div class="card">
-                <div class="card-header pb-0">
+               
                 <div class="card-header pb-0">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <a href="sb.php" class="btn btn-primary">
@@ -310,7 +286,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                 <?php if ($survey['type'] === 'local'): ?>
                                                     <a href="pb.php?survey_id=<?php echo urlencode($survey['id']); ?>" class="btn btn-sm btn-outline-primary mb-0 action-btn" title="Publish to DHIS2">
                                                         <i class="fas fa-cloud-upload-alt"></i>
-                                                        <span class="btn-text d-none d-md-inline">DHIS2 Program</span>
+                                                        <span class="btn-text d-none d-md-inline">DHIS2 Publisher</span>
                                                     </a>
                                                 <?php endif; ?>
 

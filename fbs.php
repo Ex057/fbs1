@@ -269,8 +269,8 @@
             <div class="header-content">
                 <div class="logo">Form Base Survey Tool</div>
                 <div class="nav-buttons">
-                    <a href="fbs/admin/login.php" class="btn btn-primary">Login</a>
-                    <a href="fbs/admin/register.php" class="btn btn-secondary">Register</a>
+                    <a href="fbs/admin/login" class="btn btn-primary">Login</a>
+                    <a href="fbs/admin/register" class="btn btn-secondary">Register</a>
                 </div>
             </div>
         </div>
@@ -327,8 +327,8 @@
                 <h2>Ready to Get Started?</h2>
                 <p>Join thousands of organizations using our survey tool for better data collection and insights</p>
                 <div class="cta-buttons">
-                    <a href="fbs/admin/register.php" class="btn btn-white btn-large">Create Account</a>
-                    <a href="fbs/admin/login.php" class="btn btn-secondary btn-large">Sign In</a>
+                    <a href="fbs/admin/register" class="btn btn-white btn-large">Create Account</a>
+                    <a href="fbs/admin/login" class="btn btn-secondary btn-large">Sign In</a>
                 </div>
             </div>
         </section>
