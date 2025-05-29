@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Form Base Survey Tool</title>
+    <title>FormBase Survey Tool</title>
     <style>
         * {
             margin: 0;
@@ -267,7 +267,7 @@
     <header>
         <div class="container">
             <div class="header-content">
-                <div class="logo">Form Base Survey Tool</div>
+                <div class="logo">FormBase Survey Tool</div>
                 <div class="nav-buttons">
                     <a href="fbs/admin/login" class="btn btn-primary">Login</a>
                     <a href="fbs/admin/register" class="btn btn-secondary">Register</a>
@@ -335,9 +335,34 @@
     </main>
 
     <footer>
-        <div class="container">
-            <p>&copy; 2025 Form Base Survey Tool. Empowering data collection worldwide.</p>
+        <div class="container" style="overflow: hidden; position: relative; height: 2.5em;">
+            <div id="footer-marquee" style="white-space: nowrap; display: inline-block; position: absolute; left: 0; top: 0;">
+                <p style="display: inline; font-size: 1rem;">&copy; 2025 FormBase Survey Tool. Empowering data collection worldwide.</p>
+            </div>
         </div>
+        <script>
+            const marquee = document.getElementById('footer-marquee');
+            const container = marquee.parentElement;
+            let pos = container.offsetWidth;
+
+            function animateMarquee() {
+                pos -= 1;
+                if (pos < -marquee.offsetWidth) {
+                    pos = container.offsetWidth;
+                }
+                marquee.style.transform = `translateX(${pos}px)`;
+                requestAnimationFrame(animateMarquee);
+            }
+
+            // Ensure correct width after fonts load
+            window.addEventListener('load', () => {
+                pos = container.offsetWidth;
+                animateMarquee();
+            });
+            window.addEventListener('resize', () => {
+                pos = container.offsetWidth;
+            });
+        </script>
     </footer>
 </body>
 </html>

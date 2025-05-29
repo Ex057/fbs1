@@ -139,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </form>
                 <div class="text-center mt-3">
-                    <a href="/../fbs.php" class="btn btn-secondary">Back</a>
+                    <a href="../../index.php" class="btn btn-secondary">Back</a>
                 </div>
                 
                 <!-- Uncomment if you want to show register link -->

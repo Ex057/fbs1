@@ -176,7 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <p class="text-muted">Already have an account? <a href="login" class="nav-link d-inline">Login here</a></p>
                 </div>
                  <div class="text-center mt-3">
-                    <a href="/../fbs.php" class="btn btn-secondary">Back</a>
+                    <a href="../../index.php" class="btn btn-secondary">Back</a>
                 </div>
             </div>
         </div>

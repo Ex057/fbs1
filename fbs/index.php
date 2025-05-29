@@ -1,415 +1,343 @@
-<?php
-session_start();
-
-// Enhanced error handling for database connection
-try {
-    // Database connection using mysqli with error handling
-    $servername = "localhost";
-    $username = "root";
-    $password = "root";
-    $dbname = "fbtv3";
-
-    $conn = new mysqli($servername, $username, $password, $dbname);
-
-    if ($conn->connect_error) {
-        throw new Exception("Connection failed: " . $conn->connect_error);
-    }
-} catch (Exception $e) {
-    // Log error (in production, use a proper logging mechanism)
-    error_log($e->getMessage());
-    die("A system error occurred. Please try again lat.");
-}
-
-// Input validation function
-function validateLanguage($language) {
-    $validLanguages = ['en', 'lg', 'rn', 'rk', 'ac', 'at', 'ls'];
-    return in_array($language, $validLanguages) ? $language : 'en';
-}
-
-// Fetch and validate language
-$language = isset($_GET['language']) 
-    ? validateLanguage($_GET['language']) 
-    : 'en';
-
-// Enhanced questions and options fetching
-try {
-    // Check if deployed questions are available in the session
-    if (isset($_SESSION['deployed_questions'])) {
-        $questionsArray = $_SESSION['deployed_questions'];
-        unset($_SESSION['deployed_questions']); // Clear the session data after use
-    } else {
-        // Fetch all questions and their options from the database with error handling
-        $questions = $conn->query("SELECT * FROM question ORDER BY created ASC");
-        if (!$questions) {
-            throw new Exception("Failed to fetch questions: " . $conn->error);
-        }
-
-        $questionsArray = [];
-        while ($question = $questions->fetch_assoc()) {
-            $question['options'] = [];
-            
-            // Fetch options for the question with original order
-            if ($question['option_set_id']) {
-                $options = $conn->query("
-                    SELECT * FROM option_set_values 
-                    WHERE option_set_id = " . $conn->real_escape_string($question['option_set_id']) . " 
-                    ORDER BY id ASC
-                ");
-                
-                if ($options) {
-                    while ($option = $options->fetch_assoc()) {
-                        $question['options'][] = $option;
-                    }
-                }
-            }
-            $questionsArray[] = $question;
-        }
-    }
-} catch (Exception $e) {
-    error_log("Questions Fetch Error: " . $e->getMessage());
-    $questionsArray = []; // Fallback to empty array
-}
-
-// Enhanced translations fetching
-try {
-    $translations = [];
-    $query = "SELECT key_name, translations FROM default_text";
-    $translations_result = $conn->query($query);
-    
-    if (!$translations_result) {
-        throw new Exception("Failed to fetch translations: " . $conn->error);
-    }
-
-    while ($row = $translations_result->fetch_assoc()) {
-        $decoded_translations = json_decode($row['translations'], true);
-        $translations[$row['key_name']] = 
-            $decoded_translations[$language] ?? 
-            $row['key_name'];
-    }
-} catch (Exception $e) {
-    error_log("Translations Fetch Error: " . $e->getMessage());
-    $translations = []; // Fallback to key names
-}
-
-// Enhanced translations for questions and options
-foreach ($questionsArray as &$question) {
-    // Safely handle question translations
-    $questionTranslations = !empty($question['translations']) 
-        ? json_decode($question['translations'], true) 
-        : [];
-    
-    $question['label'] = $questionTranslations[$language] ?? $question['label'];
-
-    // Safely handle option translations
-    foreach ($question['options'] as &$option) {
-        $optionTranslations = !empty($option['translations']) 
-            ? json_decode($option['translations'], true) 
-            : [];
-        
-        $option['option_value'] = $optionTranslations[$language] ?? $option['option_value'];
-    }
-}
-
-
-unset($question);
-unset($option);
-
-// Predefined list of languages with enhanced structure
-$languages = [
-    'en' => 'English',
-    'lg' => 'Luganda',
-    'rn' => 'Runyakole',
-    'rk' => 'Rukiga',
-    'ac' => 'Acholi',
-    'at' => 'Ateso',
-    'ls' => 'Lusoga'
-];
-?>
-
 <!DOCTYPE html>
-<html lang="<?php echo htmlspecialchars($language); ?>">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo htmlspecialchars($translations['Ministry of Health Client Satisfaction Feedback Tool'] ?? 'Feedback Web Form'); ?></title>
-    <link rel="stylesheet" href="styles.css">
-    <!-- Add security headers -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline';">
-    <!-- Include Select2 CSS and JS -->
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-
+    <title>Form Base Survey Tool</title>
     <style>
-        .question-number {
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem 0;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .logo {
+            font-size: 1.8rem;
             font-weight: bold;
-            margin-right: 8px;
+            color: #4a5568;
         }
-        .logo-container {
-            text-align: center; /* Center the logo */
-            margin-bottom: 20px; /* Add some space below the logo */
+
+        .nav-buttons {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
         }
-        .logo-container img {
-            max-width: 100%; /* Ensure the logo is responsive */
-            height: 170px; /* Maintain aspect ratio */
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s ease;
+            text-align: center;
         }
-        /* Customize Select2 dropdown */
-.select2-container--default .select2-selection--single {
-    height: 38px;
-    padding: 6px 12px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-}
 
-.select2-container--default .select2-selection--single .select2-selection__arrow {
-    height: 36px;
-}
+        .btn-primary {
+            background: #4299e1;
+            color: white;
+        }
 
-.select2-container--default .select2-search--dropdown .select2-search__field {
-    border: 1px solid #ccc;
-    border-radius: 4px;
-}
-            
-    </style>
-</head>
-<body>
-    <div class="top-controls">
-        <div class="language-switcher">
-            <label for="language" data-translate="select_language">
-                <?php echo htmlspecialchars($translations['select_language'] ?? 'Select Language'); ?>
-            </label>
-            <select id="languageSelect" onchange="changeLanguage()">
-                <?php foreach ($languages as $code => $name): ?>
-                    <option value="<?php echo htmlspecialchars($code); ?>" 
-                            <?php echo ($code == $language) ? 'selected' : ''; ?>>
-                        <?php echo htmlspecialchars($name); ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </div>
-        <div class="print-button">
-            <button id="print-button" onclick="printForm()">
-                <img src="print.jpg" alt="Print" loading="lazy">
-            </button>
-        </div>
-    </div>
+        .btn-primary:hover {
+            background: #3182ce;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(66, 153, 225, 0.4);
+        }
 
-     <div class="container" id="form-content">
-     
-        <div class="header-section">
-            <div class="logo-container">
-            <img src="admin/asets/asets/img/loog.jpg" alt="Ministry of Health Logo">
-            </div>
-            <div class="title">THE REPUBLIC OF UGANDA</div>
-            <div class="subtitle">MINISTRY OF HEALTH</div>
-        </div>
-        
-        <div class="flag-bar">
-            <div class="flag-black"></div>
-            <div class="flag-yellow"></div>
-            <div class="flag-red"></div>
-        </div>
-        
+        .btn-secondary {
+            background: transparent;
+            color: #4a5568;
+            border: 2px solid #4a5568;
+        }
 
-        <h2 data-translate="title"><?php echo $translations['Ministry of Health Client Satisfaction Feedback Tool'] ?? 'Ministry of Health Client Satisfaction Feedback Tool'; ?></h2>
-        <h3 data-translate="client_satisfaction_tool"><?php echo $translations['client_satisfaction_tool'] ?? 'CLIENT SATISFACTION FEEDBACK TOOL'; ?></h3>
-        <p class="subheading" data-translate="subheading">
-            <?php echo $translations['subheading'] ?? 'This tool is used to obtain clients\' feedback about their experience with the services and promote quality improvement, accountability, and transparency within the healthcare system.'; ?>
-        </p>
+        .btn-secondary:hover {
+            background: #4a5568;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(74, 85, 104, 0.3);
+        }
 
-        <form action="submit.php" method="POST" onsubmit="return validateForm()" novalidate>
+        .hero {
+            padding: 80px 0;
+            text-align: center;
+            color: white;
+        }
 
-       
-    <!-- <legend><?php echo $translations['location_details'] ?? 'Location Details'; ?></legend> -->
-    
-    <div class="facility-section">
-    <div class="form-group">
-        <label for="facility-search">Health Facility:</label>
-        <div class="searchable-dropdown">
-            <input type="text" id="facility-search" placeholder="Type to search facilities..." autocomplete="off" required>
-            <div class="dropdown-results" id="facility-results"></div>
-            <input type="hidden" id="facility_id" name="facility_id">
-        </div>
-    </div>
-    
-    <!-- Hierarchy path display -->
-    <div class="hierarchy-path" id="hierarchy-path">
-        <div class="path-display" id="path-display"></div>
-    </div>
-    
-    <!-- Hidden inputs for form submission -->
-    <input type="hidden" id="hierarchy_data" name="hierarchy_data">
-</div>
+        .hero h1 {
+            font-size: 3.5rem;
+            margin-bottom: 20px;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
 
+        .hero p {
+            font-size: 1.3rem;
+            margin-bottom: 40px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            opacity: 0.9;
+        }
 
-                        
-    <div class="location-row">
+        .features {
+            background: white;
+            padding: 80px 0;
+            margin-top: -40px;
+            border-radius: 40px 40px 0 0;
+        }
 
-<!-- Service Unit -->
-<div class="form-group">
-    <label for="serviceUnit" data-translate="service_unit"><?php echo $translations['service_unit'] ?? 'Service Unit'; ?>:</label>
-    <select id="serviceUnit" name="serviceUnit" required>
-        <option value="">none selected</option>
-    </select>
-</div>
+        .features h2 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 60px;
+            color: #2d3748;
+        }
 
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 40px;
+            margin-bottom: 60px;
+        }
 
-<div class="form-group">
-    <label for="sex" data-translate="sex"><?php echo $translations['sex'] ?? 'Sex'; ?>:</label>
-    <select id="sex" name="sex">
-        <option value="" disabled selected>none selected</option>
-        <option value="Male" data-translate="male"><?php echo $translations['male'] ?? 'Male'; ?></option>
-        <option value="Female" data-translate="female"><?php echo $translations['female'] ?? 'Female'; ?></option>
-    </select>
-    </div>
+        .feature-card {
+            background: #f7fafc;
+            padding: 40px 30px;
+            border-radius: 15px;
+            text-align: center;
+            transition: all 0.3s ease;
+            border: 1px solid #e2e8f0;
+        }
 
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            background: white;
+        }
 
+        .feature-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 2rem;
+        }
 
+        .feature-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            color: #2d3748;
+        }
 
-</div>
+        .feature-card p {
+            color: #4a5568;
+            line-height: 1.6;
+        }
 
+        .cta-section {
+            background: linear-gradient(135deg, #4299e1, #667eea);
+            padding: 80px 0;
+            text-align: center;
+            color: white;
+        }
 
-<div class="location-row">
+        .cta-section h2 {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+        }
 
-<div class="reporting-period-container">
-<label for="reporting_period" data-translate="reporting_period"><?php echo $translations['reporting_period'] ?? 'Reporting Period'; ?></label>
-<input 
-    type="date" 
-    id="reporting_period" 
-    name="reporting_period" 
-    placeholder="Select Reporting Period"
-    required
-    min="2010-01-01"
-    max="2030-12-31"
->
-<span class="placeholder-text">Click to select reporting period</span>
-    </div>
+        .cta-section p {
+            font-size: 1.2rem;
+            margin-bottom: 40px;
+            opacity: 0.9;
+        }
 
-    <div class="form-group" >
-    <label for="age" data-translate="age"><?php echo $translations['age'] ?? 'Age'; ?>:</label>
-    <input type="number" id="age" name="age" min="10" max= "99">
-  </div>
+        .cta-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
 
-  
-</div>
+        .btn-large {
+            padding: 16px 32px;
+            font-size: 1.1rem;
+        }
 
-                       
-                        
-                        <!-- Ownership -->
-                        <div class="radio-group">
-                            <label for="ownership" class="radio-label" data-translate="ownership"><?php echo $translations['ownership'] ?? 'Ownership'; ?></label>
-                            <div class="radio-options" id="ownership-options">
-                                <!-- Radio buttons will be populated here -->
-                            </div>
-                        </div>
+        .btn-white {
+            background: white;
+            color: #4299e1;
+        }
 
-                        <p data-translate="rating_instruction"><?php echo $translations['rating_instruction'] ?? '1. Please rate each of the following parameters according to your experience today on a scale of 1 to 4.'; ?></p>
-                        <p data-translate="rating_scale" style="color: red; font-size: 12px; font-style: italic;"><?php echo $translations['rating_scale'] ?? 'where \'0\' means Poor, \'1\' Fair, \'2\' Good and \'3\' Excellent'; ?></p>
+        .btn-white:hover {
+            background: #f7fafc;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255, 255, 255, 0.3);
+        }
 
+        footer {
+            background: #2d3748;
+            color: white;
+            text-align: center;
+            padding: 40px 0;
+        }
 
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
 
+            .hero p {
+                font-size: 1.1rem;
+            }
 
+            .features h2 {
+                font-size: 2rem;
+            }
 
+            .cta-section h2 {
+                font-size: 2rem;
+            }
 
-            
-           <!-- Dynamically Generate Questions -->
-           <?php foreach ($questionsArray as $question): ?>
+            .header-content {
+                justify-content: center;
+                text-align: center;
+            }
 
-                
+            .nav-buttons {
+                justify-content: center;
+            }
 
-<div class="form-group">
-    <div class="radio-label">
-        <?php echo htmlspecialchars($question['label']); ?>
-    </div>
-    
-    <?php if ($question['question_type'] == 'radio'): ?>
-        <div class="radio-options">
-            <?php foreach ($question['options'] as $option): ?>
-                <div class="radio-option">
-                    <input type="radio" 
-                           id="option_<?php echo $question['id']; ?>_<?php echo $option['id']; ?>"
-                           name="question_<?php echo $question['id']; ?>" 
-                           value="<?php echo htmlspecialchars($option['option_value']); ?>">
-                    <label for="option_<?php echo $question['id']; ?>_<?php echo $option['id']; ?>">
-                        <?php echo htmlspecialchars($option['option_value']); ?>
-                    </label>
-                </div>
-            <?php endforeach; ?>
-        </div>
-    <?php elseif ($question['question_type'] == 'checkbox'): ?>
-        <div class="radio-options">
-            <?php foreach ($question['options'] as $option): ?>
-                <div class="radio-option">
-                    <input type="checkbox" 
-                           id="option_<?php echo $question['id']; ?>_<?php echo $option['id']; ?>"
-                           name="question_<?php echo $question['id']; ?>[]" 
-                           value="<?php echo htmlspecialchars($option['option_value']); ?>">
-                    <label for="option_<?php echo $question['id']; ?>_<?php echo $option['id']; ?>">
-                        <?php echo htmlspecialchars($option['option_value']); ?>
-                    </label>
-                </div>
-            <?php endforeach; ?>
-        </div>
-    <?php elseif ($question['question_type'] == 'select'): ?>
-        <select class="form-control" name="question_<?php echo $question['id']; ?>">
-            <option value="">Select an option</option>
-            <?php foreach ($question['options'] as $option): ?>
-                <option value="<?php echo htmlspecialchars($option['option_value']); ?>">
-                    <?php echo htmlspecialchars($option['option_value']); ?>
-                </option>
-            <?php endforeach; ?>
-        </select>
-    <?php elseif ($question['question_type'] == 'text'): ?>
-        <input type="text" 
-               class="form-control" 
-               name="question_<?php echo $question['id']; ?>">
-    <?php elseif ($question['question_type'] == 'textarea'): ?>
-        <textarea  class="form-control" 
-                  name="question_<?php echo $question['id']; ?>"
-                  rows="3"></textarea>
-    <?php endif; ?>
-</div>
-<?php endforeach; ?>
-
-
-
-<button type="submit" data-translate="submit"><?php echo $translations['submit'] ?? 'Submit'; ?></button>
-</form>
-    </div>
-
-    <script>
-        function changeLanguage() {
-            var selectedLang = document.getElementById('languageSelect').value;
-            // Add basic validation
-            const validLanguages = ['en', 'lg', 'rn', 'rk', 'ac', 'at', 'ls'];
-            if (validLanguages.includes(selectedLang)) {
-                window.location.href = "?language=" + encodeURIComponent(selectedLang);
+            .cta-buttons {
+                flex-direction: column;
+                align-items: center;
             }
         }
 
-        function validateForm() {
-            let isValid = true;
-            const requiredQuestions = document.querySelectorAll('.form-group input[required], .form-group select[required]');
-            
-            requiredQuestions.forEach(field => {
-                if (!field.value.trim()) {
-                    isValid = false;
-                    field.classList.add('error');
-                } else {
-                    field.classList.remove('error');
-                }
-            });
+        @media (max-width: 480px) {
+            .btn {
+                padding: 10px 20px;
+                font-size: 0.9rem;
+            }
 
-            return isValid;
+            .btn-large {
+                padding: 14px 28px;
+                font-size: 1rem;
+            }
         }
-    </script>
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">Form Base Survey Tool</div>
+                <div class="nav-buttons">
+                    <a href="fbs/admin/login" class="btn btn-primary">Login</a>
+                    <a href="fbs/admin/register" class="btn btn-secondary">Register</a>
+                </div>
+            </div>
+        </div>
+    </header>
 
-        <!-- jQuery (required for Select2) -->
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <main>
+        <section class="hero">
+            <div class="container">
+                <h1>Advanced Survey Management</h1>
+                <p>Create, customize, and deploy powerful surveys with seamless DHIS2 integration and multi-language support</p>
+            </div>
+        </section>
 
-<!-- Select2 JS -->
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+        <section class="features">
+            <div class="container">
+                <h2>Powerful Features</h2>
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">🌐</div>
+                        <h3>Multi-Language Support</h3>
+                        <p>Create surveys in multiple languages with built-in translation capabilities to reach diverse audiences effectively.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">⚙️</div>
+                        <h3>Customizable Questions</h3>
+                        <p>Design and edit questions with various input types, validation rules, and conditional logic to suit your specific needs.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">📊</div>
+                        <h3>DHIS2 Integration</h3>
+                        <p>Seamlessly create surveys from DHIS2 data and automatically sync results back to your DHIS2 instance for comprehensive analytics.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">📱</div>
+                        <h3>Mobile-First Design</h3>
+                        <p>Respondents can easily take surveys on any device by simply scanning a QR code - perfect for field data collection.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">📋</div>
+                        <h3>Survey Builder</h3>
+                        <p>Intuitive drag-and-drop interface to create complex surveys, attach questions, and configure survey flow with ease.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">📈</div>
+                        <h3>Real-time Results</h3>
+                        <p>Monitor survey responses in real-time with automatic data synchronization and comprehensive reporting capabilities.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-    <script defer src="script.js"></script>
-    <script defer src="translations.js"></script>
+        <section class="cta-section">
+            <div class="container">
+                <h2>Ready to Get Started?</h2>
+                <p>Join thousands of organizations using our survey tool for better data collection and insights</p>
+                <div class="cta-buttons">
+                    <a href="fbs/admin/register" class="btn btn-white btn-large">Create Account</a>
+                    <a href="fbs/admin/login" class="btn btn-secondary btn-large">Sign In</a>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 Form Base Survey Tool. Empowering data collection worldwide.</p>
+        </div>
+    </footer>
 </body>
 </html>

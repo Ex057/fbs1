@@ -191,19 +191,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_survey'])) {
 
 end_processing:
 
-// Helper functions
+/**
+ * Get all active DHIS2 instances using getDhis2Config from dhis2_shared.php.
+ * Returns an array of instance configs keyed by their 'key'.
+ */
 function getLocalDHIS2Config() {
-    $configFile = 'dhis2/dhis2.json';
-    if (!file_exists($configFile)) {
-        throw new Exception("DHIS2 configuration file not found");
+  // Use the shared function to fetch all active instances from the DB
+  $instances = [];
+  $dbHost = 'localhost';
+  $dbUser = 'root';
+  $dbPass = 'root';
+  $dbName = 'fbtv3';
+
+  $mysqli = new mysqli($dbHost, $dbUser, $dbPass, $dbName);
+  if ($mysqli->connect_errno) {
+    throw new Exception("Database connection failed: " . $mysqli->connect_error);
+  }
+
+  $result = $mysqli->query("SELECT `key` FROM dhis2_instances WHERE status = 1");
+  while ($row = $result->fetch_assoc()) {
+    $config = getDhis2Config($row['key']);
+    if ($config) {
+      $instances[$row['key']] = $config;
     }
-    
-    $config = json_decode(file_get_contents($configFile), true);
-    if (json_last_error() !== JSON_ERROR_NONE) {
-        throw new Exception("Invalid DHIS2 configuration: " . json_last_error_msg());
-    }
-    
-    return $config;
+  }
+  $result->free();
+  $mysqli->close();
+
+  return $instances;
 }
 
 function getTrackerPrograms($instance) {
@@ -502,58 +517,75 @@ function getProgramDetails($instance, $domain, $programId) {
                     <!-- Toggle for Attach Existing Questions -->
                     <div class="mb-3">
                       <button type="button" class="btn btn-outline-info shadow-sm" id="toggle-existing-questions">
-                        <i class="fas fa-link"></i> Attach Existing Questions (optional)
+                      <i class="fas fa-link"></i> Attach Existing Questions (optional)
                       </button>
                     </div>
                     <div id="existing-questions-section" style="display:none;">
                       <div class="mb-4">
-                        <h5>Attach Existing Questions</h5>
-                        <div style="max-height: 250px; overflow-y: auto; border: 1px solid #eee; border-radius: 8px; padding: 10px; background: #f8f9fa;">
+                      <h5>Attach Existing Questions</h5>
+                      <input type="text" id="search-existing-questions" class="form-control mb-2" placeholder="Search questions...">
+                      <div id="existing-questions-list" style="max-height: 250px; overflow-y: auto; border: 1px solid #eee; border-radius: 8px; padding: 10px; background: #f8f9fa;">
+                        <?php
+                        // Fetch existing questions with their option sets
+                        try {
+                          $conn = new PDO("mysql:host=localhost;dbname=fbtv3;charset=utf8", "root", "root");
+                          $stmt = $conn->query("SELECT q.id, q.label, q.question_type, q.is_required, q.option_set_id, os.name AS option_set_name
+                                    FROM question q
+                                    LEFT JOIN option_set os ON q.option_set_id = os.id
+                                    ORDER BY q.label ASC");
+                          $questions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                        } catch (Exception $e) {
+                          $questions = [];
+                          echo '<div class="alert alert-danger">Could not load questions: ' . htmlspecialchars($e->getMessage()) . '</div>';
+                        }
+                        foreach ($questions as $q):
+                        ?>
+                        <div class="form-check mb-2 existing-question-item">
+                          <input class="form-check-input" type="checkbox" name="attach_questions[]" value="<?= $q['id'] ?>" id="q<?= $q['id'] ?>">
+                          <label class="form-check-label" for="q<?= $q['id'] ?>">
+                          <strong><?= htmlspecialchars($q['label']) ?></strong>
+                          <span class="badge bg-secondary ms-2"><?= htmlspecialchars($q['question_type']) ?></span>
+                          <?php if ($q['option_set_name']): ?>
+                            <span class="badge bg-info ms-2"><?= htmlspecialchars($q['option_set_name']) ?></span>
+                          <?php endif; ?>
+                          </label>
                           <?php
-                            // Fetch existing questions with their option sets
-                            try {
-                              $conn = new PDO("mysql:host=localhost;dbname=fbtv3;charset=utf8", "root", "root");
-                              $stmt = $conn->query("SELECT q.id, q.label, q.question_type, q.is_required, q.option_set_id, os.name AS option_set_name
-                                                    FROM question q
-                                                    LEFT JOIN option_set os ON q.option_set_id = os.id
-                                                    ORDER BY q.label ASC");
-                              $questions = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                            } catch (Exception $e) {
-                              $questions = [];
-                              echo '<div class="alert alert-danger">Could not load questions: ' . htmlspecialchars($e->getMessage()) . '</div>';
+                          // Show option set values if any
+                          if ($q['option_set_id']) {
+                            $optStmt = $conn->prepare("SELECT option_value FROM option_set_values WHERE option_set_id = ?");
+                            $optStmt->execute([$q['option_set_id']]);
+                            $opts = $optStmt->fetchAll(PDO::FETCH_COLUMN);
+                            if ($opts) {
+                            echo '<div class="mt-1" style="font-size:12px;">';
+                            foreach ($opts as $opt) {
+                              echo '<span class="option-item">'.htmlspecialchars($opt).'</span> ';
                             }
-                            foreach ($questions as $q):
+                            echo '</div>';
+                            }
+                          }
                           ?>
-                            <div class="form-check mb-2">
-                              <input class="form-check-input" type="checkbox" name="attach_questions[]" value="<?= $q['id'] ?>" id="q<?= $q['id'] ?>">
-                              <label class="form-check-label" for="q<?= $q['id'] ?>">
-                                <strong><?= htmlspecialchars($q['label']) ?></strong>
-                                <span class="badge bg-secondary ms-2"><?= htmlspecialchars($q['question_type']) ?></span>
-                                <?php if ($q['option_set_name']): ?>
-                                  <span class="badge bg-info ms-2"><?= htmlspecialchars($q['option_set_name']) ?></span>
-                                <?php endif; ?>
-                              </label>
-                              <?php
-                                // Show option set values if any
-                                if ($q['option_set_id']) {
-                                  $optStmt = $conn->prepare("SELECT option_value FROM option_set_values WHERE option_set_id = ?");
-                                  $optStmt->execute([$q['option_set_id']]);
-                                  $opts = $optStmt->fetchAll(PDO::FETCH_COLUMN);
-                                  if ($opts) {
-                                    echo '<div class="mt-1" style="font-size:12px;">';
-                                    foreach ($opts as $opt) {
-                                      echo '<span class="option-item">'.htmlspecialchars($opt).'</span> ';
-                                    }
-                                    echo '</div>';
-                                  }
-                                }
-                              ?>
-                            </div>
-                          <?php endforeach; ?>
                         </div>
-                        <small class="text-muted">Scroll and select questions to attach to this survey.</small>
+                        <?php endforeach; ?>
+                      </div>
+                      <small class="text-muted">Scroll and search to select questions to attach to this survey.</small>
                       </div>
                     </div>
+                    <script>
+                      // Search/filter for existing questions
+                      document.addEventListener('DOMContentLoaded', function() {
+                      var searchInput = document.getElementById('search-existing-questions');
+                      var items = document.querySelectorAll('.existing-question-item');
+                      if (searchInput) {
+                        searchInput.addEventListener('input', function() {
+                        var val = this.value.trim().toLowerCase();
+                        items.forEach(function(item) {
+                          var text = item.textContent.toLowerCase();
+                          item.style.display = text.indexOf(val) !== -1 ? '' : 'none';
+                        });
+                        });
+                      }
+                      });
+                    </script>
 
                     <!-- Toggle for Add New Questions -->
                     <div class="mb-3">
@@ -570,8 +602,7 @@ function getProgramDetails($instance, $domain, $programId) {
                           <div class="col-md-4">
                             <select name="questions[0][type]" class="form-control">
                               <option value="text">Text</option>
-                              <option value="select">Select</option>
-                              <option value="number">Number</option>
+                          
                             </select>
                           </div>
                           <div class="col-md-2">
@@ -698,219 +729,224 @@ function getProgramDetails($instance, $domain, $programId) {
                 ?>
                   <div id="dhis2-survey-container"></div>
                   <script>
-                    // AJAX loader for DHIS2 survey creation
-                    function loadDHIS2SurveyForm(params = {}) {
-                      let url = '<?= basename($_SERVER['PHP_SELF']) ?>?survey_source=dhis2';
-                      if (params.dhis2_instance) url += '&dhis2_instance=' + encodeURIComponent(params.dhis2_instance);
-                      if (params.domain) url += '&domain=' + encodeURIComponent(params.domain);
-                      if (params.program_id) url += '&program_id=' + encodeURIComponent(params.program_id);
+                  // AJAX loader for DHIS2 survey creation
+                  function loadDHIS2SurveyForm(params = {}) {
+                    let url = '<?= basename($_SERVER['PHP_SELF']) ?>?survey_source=dhis2';
+                    if (params.dhis2_instance) url += '&dhis2_instance=' + encodeURIComponent(params.dhis2_instance);
+                    if (params.domain) url += '&domain=' + encodeURIComponent(params.domain);
+                    if (params.program_id) url += '&program_id=' + encodeURIComponent(params.program_id);
 
-                      document.getElementById('dhis2-survey-container').innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>';
-                      fetch(url + '&ajax=1')
-                        .then(res => res.text())
-                        .then(html => {
-                          document.getElementById('dhis2-survey-container').innerHTML = html;
-                          // Attach event listeners for selects
-                          let instanceSel = document.getElementById('dhis2-instance-select');
-                          if (instanceSel) instanceSel.onchange = function() {
-                            loadDHIS2SurveyForm({dhis2_instance: this.value});
-                          };
-                          let domainSel = document.getElementById('domain-select');
-                          if (domainSel) domainSel.onchange = function() {
-                            loadDHIS2SurveyForm({
-                              dhis2_instance: document.getElementById('dhis2-instance-select').value,
-                              domain: this.value
-                            });
-                          };
-                          let progSel = document.getElementById('program-select');
-                          if (progSel) progSel.onchange = function() {
-                            loadDHIS2SurveyForm({
-                              dhis2_instance: document.getElementById('dhis2-instance-select').value,
-                              domain: document.getElementById('domain-select').value,
-                              program_id: this.value
-                            });
-                          };
-                        });
-                    }
-                    <?php if (isset($_GET['ajax']) && $_GET['ajax'] == 1): ?>
-                      // Do nothing (handled below)
-                    <?php else: ?>
+                    document.getElementById('dhis2-survey-container').innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>';
+                    fetch(url + '&ajax=1')
+                    .then(res => res.text())
+                    .then(html => {
+                      // Remove aside and navbar if present
+                      let aside = document.querySelector('aside');
+                      if (aside) aside.style.display = 'none';
+                      let navbar = document.querySelector('.main-content .navbar');
+                      if (navbar) navbar.style.display = 'none';
+                      document.getElementById('dhis2-survey-container').innerHTML = html;
+                      // Attach event listeners for selects
+                      let instanceSel = document.getElementById('dhis2-instance-select');
+                      if (instanceSel) instanceSel.onchange = function() {
+                      loadDHIS2SurveyForm({dhis2_instance: this.value});
+                      };
+                      let domainSel = document.getElementById('domain-select');
+                      if (domainSel) domainSel.onchange = function() {
                       loadDHIS2SurveyForm({
-                        <?php if (isset($_GET['dhis2_instance'])): ?>dhis2_instance: "<?= htmlspecialchars($_GET['dhis2_instance']) ?>",<?php endif; ?>
-                        <?php if (isset($_GET['domain'])): ?>domain: "<?= htmlspecialchars($_GET['domain']) ?>",<?php endif; ?>
-                        <?php if (isset($_GET['program_id'])): ?>program_id: "<?= htmlspecialchars($_GET['program_id']) ?>",<?php endif; ?>
+                        dhis2_instance: document.getElementById('dhis2-instance-select').value,
+                        domain: this.value
                       });
-                    <?php endif; ?>
+                      };
+                      let progSel = document.getElementById('program-select');
+                      if (progSel) progSel.onchange = function() {
+                      loadDHIS2SurveyForm({
+                        dhis2_instance: document.getElementById('dhis2-instance-select').value,
+                        domain: document.getElementById('domain-select').value,
+                        program_id: this.value
+                      });
+                      };
+                    });
+                  }
+                  <?php if (isset($_GET['ajax']) && $_GET['ajax'] == 1): ?>
+                    // Do nothing (handled below)
+                  <?php else: ?>
+                    loadDHIS2SurveyForm({
+                    <?php if (isset($_GET['dhis2_instance'])): ?>dhis2_instance: "<?= htmlspecialchars($_GET['dhis2_instance']) ?>",<?php endif; ?>
+                    <?php if (isset($_GET['domain'])): ?>domain: "<?= htmlspecialchars($_GET['domain']) ?>",<?php endif; ?>
+                    <?php if (isset($_GET['program_id'])): ?>program_id: "<?= htmlspecialchars($_GET['program_id']) ?>",<?php endif; ?>
+                    });
+                  <?php endif; ?>
                   </script>
                   <?php
                   // AJAX partial for DHIS2 form
                   if (isset($_GET['ajax']) && $_GET['ajax'] == 1) {
-                    // DO NOT include aside.php or navbar.php here!
-                    ob_clean();
-                    ?>
-                    <form method="GET" action="" class="p-3 rounded bg-light shadow-sm">
-                      <input type="hidden" name="survey_source" value="dhis2">
-                      <div class="row mb-4">
-                        <div class="col-md-4">
-                          <div class="form-group mb-3">
-                            <label class="form-control-label">Select DHIS2 Instance</label>
-                            <select name="dhis2_instance" class="form-control" id="dhis2-instance-select">
-                              <option value="">-- Select Instance --</option>
-                              <?php 
-                              try {
-                                  $jsonConfig = getLocalDHIS2Config();
-                                  foreach ($jsonConfig as $key => $config) : ?>
-                                      <option value="<?= htmlspecialchars($key) ?>" <?= (isset($_GET['dhis2_instance']) && $_GET['dhis2_instance'] == $key) ? 'selected' : '' ?>>
-                                          <?= htmlspecialchars($key) ?>
-                                      </option>
-                                  <?php endforeach;
-                              } catch (Exception $e) {
-                                  echo '<option value="">Error: ' . htmlspecialchars($e->getMessage()) . '</option>';
-                              }
-                              ?>
-                            </select>
-                          </div>
-                        </div>
-                        
-                        <?php if (isset($_GET['dhis2_instance']) && !empty($_GET['dhis2_instance'])): ?>
-                        <div class="col-md-4">
-                          <div class="form-group mb-3">
-                            <label class="form-control-label">Select Domain Type</label>
-                            <select name="domain" class="form-control" id="domain-select">
-                              <option value="">-- Select Domain --</option>
-                              <option value="tracker" <?= (isset($_GET['domain']) && $_GET['domain'] == 'tracker') ? 'selected' : '' ?>>Tracker</option>
-                              <option value="aggregate" <?= (isset($_GET['domain']) && $_GET['domain'] == 'aggregate') ? 'selected' : '' ?>>Aggregate</option>
-                            </select>
-                          </div>
-                        </div>
-                        <?php endif; ?>
-                        
-                        <?php if (isset($_GET['dhis2_instance']) && !empty($_GET['dhis2_instance']) && 
-                                 isset($_GET['domain']) && !empty($_GET['domain'])): ?>
-                        <div class="col-md-4">
-                          <div class="form-group mb-3">
-                            <label class="form-control-label">
-                              <?= $_GET['domain'] == 'tracker' ? 'Select Program' : 'Select Dataset' ?>
-                            </label>
-                            <select name="program_id" class="form-control" id="program-select">
-                              <option value="">-- Select <?= $_GET['domain'] == 'tracker' ? 'Program' : 'Dataset' ?> --</option>
-                              <?php 
-                              try {
-                                  $programs = $_GET['domain'] == 'tracker' 
-                                      ? getTrackerPrograms($_GET['dhis2_instance']) 
-                                      : getDatasets($_GET['dhis2_instance']);
-                                      
-                                  foreach ($programs as $program) : ?>
-                                      <option value="<?= htmlspecialchars($program['id']) ?>" 
-                                          <?= (isset($_GET['program_id']) && $_GET['program_id'] == $program['id']) ? 'selected' : '' ?>>
-                                          <?= htmlspecialchars($program['name']) ?>
-                                      </option>
-                                  <?php endforeach;
-                              } catch (Exception $e) {
-                                  echo '<option value="">Error: ' . htmlspecialchars($e->getMessage()) . '</option>';
-                              }
-                              ?>
-                            </select>
-                          </div>
-                        </div>
-                        <?php endif; ?>
-                      </div>
-                    </form>
-                    <?php 
-                    // Display program preview if all selections are made
-                    if (isset($_GET['dhis2_instance']) && !empty($_GET['dhis2_instance']) && 
-                        isset($_GET['domain']) && !empty($_GET['domain']) && 
-                        isset($_GET['program_id']) && !empty($_GET['program_id'])) {
-                        
+                  // DO NOT include aside.php or navbar.php here!
+                  ob_clean();
+                  ?>
+                  <form method="GET" action="" class="p-3 rounded bg-light shadow-sm">
+                    <input type="hidden" name="survey_source" value="dhis2">
+                    <div class="row mb-4">
+                    <div class="col-md-4">
+                      <div class="form-group mb-3">
+                      <label class="form-control-label">Select DHIS2 Instance</label>
+                      <select name="dhis2_instance" class="form-control" id="dhis2-instance-select">
+                        <option value="">-- Select Instance --</option>
+                        <?php 
                         try {
-                            $programDetails = getProgramDetails(
-                                $_GET['dhis2_instance'], 
-                                $_GET['domain'], 
-                                $_GET['program_id']
-                            );
-                            
-                            if ($programDetails['program']) {
-                                ?>
-                                <div class="program-preview shadow-sm mb-4">
-                                  <h3 class="mb-3 text-primary">Program Preview: <?= htmlspecialchars($programDetails['program']['name']) ?></h3>
-                                  
-                                  <?php if (!empty($programDetails['dataElements'])): ?>
-                                  <div class="preview-section">
-                                    <h4>Data Elements</h4>
-                                    <?php foreach ($programDetails['dataElements'] as $deId => $element): ?>
-                                      <div class="preview-item">
-                                        <strong><?= htmlspecialchars($element['name']) ?></strong>
-                                        <?php if (!empty($element['optionSet'])): ?>
-                                          <div>
-                                            <small>Option Set: <?= htmlspecialchars($element['optionSet']['name']) ?></small>
-                                            <?php if (!empty($element['options'])): ?>
-                                              <div class="mt-2">
-                                                <?php foreach ($element['options'] as $option): ?>
-                                                  <span class="option-item"><?= htmlspecialchars($option['name']) ?></span>
-                                                <?php endforeach; ?>
-                                              </div>
-                                            <?php endif; ?>
-                                          </div>
-                                        <?php endif; ?>
-                                      </div>
-                                    <?php endforeach; ?>
-                                  </div>
-                                  <?php endif; ?>
-                                  
-                                  <?php if (!empty($programDetails['attributes']) && $_GET['domain'] == 'tracker'): ?>
-                                  <div class="preview-section">
-                                    <h4>Tracked Entity Attributes</h4>
-                                    <?php foreach ($programDetails['attributes'] as $attrId => $attr): ?>
-                                      <div class="preview-item">
-                                        <strong><?= htmlspecialchars($attr['name']) ?></strong>
-                                        <?php if (!empty($attr['optionSet'])): ?>
-                                          <div>
-                                            <small>Option Set: <?= htmlspecialchars($attr['optionSet']['name']) ?></small>
-                                            <?php if (!empty($attr['options'])): ?>
-                                              <div class="mt-2">
-                                                <?php foreach ($attr['options'] as $option): ?>
-                                                  <span class="option-item"><?= htmlspecialchars($option['name']) ?></span>
-                                                <?php endforeach; ?>
-                                              </div>
-                                            <?php endif; ?>
-                                          </div>
-                                        <?php endif; ?>
-                                      </div>
-                                    <?php endforeach; ?>
-                                  </div>
-                                  <?php endif; ?>
-                                  
-                                  <form method="POST" action="" class="mt-4">
-                                    <input type="hidden" name="dhis2_instance" value="<?= htmlspecialchars($_GET['dhis2_instance']) ?>">
-                                    <input type="hidden" name="domain" value="<?= htmlspecialchars($_GET['domain']) ?>">
-                                    <input type="hidden" name="program_id" value="<?= htmlspecialchars($_GET['program_id']) ?>">
-                                    <input type="hidden" name="program_name" value="<?= htmlspecialchars($programDetails['program']['name']) ?>">
-                                    <input type="hidden" name="data_elements" value="<?= htmlspecialchars(json_encode($programDetails['dataElements'])) ?>">
-                                    <?php if ($_GET['domain'] == 'tracker'): ?>
-                                      <input type="hidden" name="attributes" value="<?= htmlspecialchars(json_encode($programDetails['attributes'])) ?>">
-                                    <?php endif; ?>
-                                    
-                                    <div class="text-center mt-4">
-                                      <button type="submit" name="create_survey" class="btn btn-primary action-btn shadow">
-                                        <i class="fas fa-sync-alt me-2"></i> Create Survey from DHIS2
-                                      </button>
-                                    </div>
-                                  </form>
-                                </div>
-                                <?php
-                            }
+                          $jsonConfig = getLocalDHIS2Config();
+                          foreach ($jsonConfig as $key => $config) : ?>
+                            <option value="<?= htmlspecialchars($key) ?>" <?= (isset($_GET['dhis2_instance']) && $_GET['dhis2_instance'] == $key) ? 'selected' : '' ?>>
+                              <?= htmlspecialchars($key) ?>
+                            </option>
+                          <?php endforeach;
                         } catch (Exception $e) {
-                            echo '<div class="alert alert-danger">Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
+                          echo '<option value="">Error: ' . htmlspecialchars($e->getMessage()) . '</option>';
                         }
-                    }
-                    ?>
-                    <div class="text-center mt-3">
-                      <a href="sb.php" class="btn btn-secondary action-btn shadow">
-                        <i class="fas fa-arrow-left me-2"></i> Back
-                      </a>
+                        ?>
+                      </select>
+                      </div>
                     </div>
-                    <?php
-                    exit;
+                    
+                    <?php if (isset($_GET['dhis2_instance']) && !empty($_GET['dhis2_instance'])): ?>
+                    <div class="col-md-4">
+                      <div class="form-group mb-3">
+                      <label class="form-control-label">Select Domain Type</label>
+                      <select name="domain" class="form-control" id="domain-select">
+                        <option value="">-- Select Domain --</option>
+                        <option value="tracker" <?= (isset($_GET['domain']) && $_GET['domain'] == 'tracker') ? 'selected' : '' ?>>Tracker</option>
+                        <option value="aggregate" <?= (isset($_GET['domain']) && $_GET['domain'] == 'aggregate') ? 'selected' : '' ?>>Aggregate</option>
+                      </select>
+                      </div>
+                    </div>
+                    <?php endif; ?>
+                    
+                    <?php if (isset($_GET['dhis2_instance']) && !empty($_GET['dhis2_instance']) && 
+                         isset($_GET['domain']) && !empty($_GET['domain'])): ?>
+                    <div class="col-md-4">
+                      <div class="form-group mb-3">
+                      <label class="form-control-label">
+                        <?= $_GET['domain'] == 'tracker' ? 'Select Program' : 'Select Dataset' ?>
+                      </label>
+                      <select name="program_id" class="form-control" id="program-select">
+                        <option value="">-- Select <?= $_GET['domain'] == 'tracker' ? 'Program' : 'Dataset' ?> --</option>
+                        <?php 
+                        try {
+                          $programs = $_GET['domain'] == 'tracker' 
+                            ? getTrackerPrograms($_GET['dhis2_instance']) 
+                            : getDatasets($_GET['dhis2_instance']);
+                            
+                          foreach ($programs as $program) : ?>
+                            <option value="<?= htmlspecialchars($program['id']) ?>" 
+                              <?= (isset($_GET['program_id']) && $_GET['program_id'] == $program['id']) ? 'selected' : '' ?>>
+                              <?= htmlspecialchars($program['name']) ?>
+                            </option>
+                          <?php endforeach;
+                        } catch (Exception $e) {
+                          echo '<option value="">Error: ' . htmlspecialchars($e->getMessage()) . '</option>';
+                        }
+                        ?>
+                      </select>
+                      </div>
+                    </div>
+                    <?php endif; ?>
+                    </div>
+                  </form>
+                  <?php 
+                  // Display program preview if all selections are made
+                  if (isset($_GET['dhis2_instance']) && !empty($_GET['dhis2_instance']) && 
+                    isset($_GET['domain']) && !empty($_GET['domain']) && 
+                    isset($_GET['program_id']) && !empty($_GET['program_id'])) {
+                    
+                    try {
+                      $programDetails = getProgramDetails(
+                        $_GET['dhis2_instance'], 
+                        $_GET['domain'], 
+                        $_GET['program_id']
+                      );
+                      
+                      if ($programDetails['program']) {
+                        ?>
+                        <div class="program-preview shadow-sm mb-4">
+                          <h3 class="mb-3 text-primary">Program Preview: <?= htmlspecialchars($programDetails['program']['name']) ?></h3>
+                          
+                          <?php if (!empty($programDetails['dataElements'])): ?>
+                          <div class="preview-section">
+                          <h4>Data Elements</h4>
+                          <?php foreach ($programDetails['dataElements'] as $deId => $element): ?>
+                            <div class="preview-item">
+                            <strong><?= htmlspecialchars($element['name']) ?></strong>
+                            <?php if (!empty($element['optionSet'])): ?>
+                              <div>
+                              <small>Option Set: <?= htmlspecialchars($element['optionSet']['name']) ?></small>
+                              <?php if (!empty($element['options'])): ?>
+                                <div class="mt-2">
+                                <?php foreach ($element['options'] as $option): ?>
+                                  <span class="option-item"><?= htmlspecialchars($option['name']) ?></span>
+                                <?php endforeach; ?>
+                                </div>
+                              <?php endif; ?>
+                              </div>
+                            <?php endif; ?>
+                            </div>
+                          <?php endforeach; ?>
+                          </div>
+                          <?php endif; ?>
+                          
+                          <?php if (!empty($programDetails['attributes']) && $_GET['domain'] == 'tracker'): ?>
+                          <div class="preview-section">
+                          <h4>Tracked Entity Attributes</h4>
+                          <?php foreach ($programDetails['attributes'] as $attrId => $attr): ?>
+                            <div class="preview-item">
+                            <strong><?= htmlspecialchars($attr['name']) ?></strong>
+                            <?php if (!empty($attr['optionSet'])): ?>
+                              <div>
+                              <small>Option Set: <?= htmlspecialchars($attr['optionSet']['name']) ?></small>
+                              <?php if (!empty($attr['options'])): ?>
+                                <div class="mt-2">
+                                <?php foreach ($attr['options'] as $option): ?>
+                                  <span class="option-item"><?= htmlspecialchars($option['name']) ?></span>
+                                <?php endforeach; ?>
+                                </div>
+                              <?php endif; ?>
+                              </div>
+                            <?php endif; ?>
+                            </div>
+                          <?php endforeach; ?>
+                          </div>
+                          <?php endif; ?>
+                          
+                          <form method="POST" action="" class="mt-4">
+                          <input type="hidden" name="dhis2_instance" value="<?= htmlspecialchars($_GET['dhis2_instance']) ?>">
+                          <input type="hidden" name="domain" value="<?= htmlspecialchars($_GET['domain']) ?>">
+                          <input type="hidden" name="program_id" value="<?= htmlspecialchars($_GET['program_id']) ?>">
+                          <input type="hidden" name="program_name" value="<?= htmlspecialchars($programDetails['program']['name']) ?>">
+                          <input type="hidden" name="data_elements" value="<?= htmlspecialchars(json_encode($programDetails['dataElements'])) ?>">
+                          <?php if ($_GET['domain'] == 'tracker'): ?>
+                            <input type="hidden" name="attributes" value="<?= htmlspecialchars(json_encode($programDetails['attributes'])) ?>">
+                          <?php endif; ?>
+                          
+                          <div class="text-center mt-4">
+                            <button type="submit" name="create_survey" class="btn btn-primary action-btn shadow">
+                            <i class="fas fa-sync-alt me-2"></i> Create Survey from DHIS2
+                            </button>
+                          </div>
+                          </form>
+                        </div>
+                        <?php
+                      }
+                    } catch (Exception $e) {
+                      echo '<div class="alert alert-danger">Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
+                    }
+                  }
+                  ?>
+                  <div class="text-center mt-3">
+                    <a href="sb.php" class="btn btn-secondary action-btn shadow">
+                    <i class="fas fa-arrow-left me-2"></i> Back
+                    </a>
+                  </div>
+                  <?php
+                  exit;
                   }
                   ?>
                 <?php endif; ?>
