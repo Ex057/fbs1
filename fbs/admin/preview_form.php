@@ -144,7 +144,7 @@ unset($option);
             <i class="fas fa-share"></i> Share
         </button>
         <button onclick="window.location.href='survey_page.php?survey_id=<?php echo $surveyId; ?>'">
-            <i class="fas fa-rocket"></i> Publish
+            <i class="fas fa-rocket"></i> Generate
         </button>
     </div>
 
@@ -195,68 +195,63 @@ unset($option);
 </div>
 
 
-                        <div class="location-row">
+                        <?php if ($survey['type'] === 'local'): ?>
+                            <div class="location-row">
 
-                        <!-- Service Unit -->
-                        <div class="form-group">
-                            <label for="serviceUnit" data-translate="service_unit"><?php echo $translations['service_unit'] ?? 'Service Unit'; ?>:</label>
-                            <select id="serviceUnit" name="serviceUnit" required>
-                                <option value="">none selected</option>
-                            </select>
-                        </div>
+                                <!-- Service Unit -->
+                                <div class="form-group">
+                                    <label for="serviceUnit" data-translate="service_unit"><?php echo $translations['service_unit'] ?? 'Service Unit'; ?>:</label>
+                                    <select id="serviceUnit" name="serviceUnit" required>
+                                        <option value="">none selected</option>
+                                    </select>
+                                </div>
 
-
-                        <div class="form-group">
-                            <label for="sex" data-translate="sex"><?php echo $translations['sex'] ?? 'Sex'; ?>:</label>
-                            <select id="sex" name="sex">
-                                <option value="" disabled selected>none selected</option>
-                                <option value="Male" data-translate="male"><?php echo $translations['male'] ?? 'Male'; ?></option>
-                                <option value="Female" data-translate="female"><?php echo $translations['female'] ?? 'Female'; ?></option>
-                            </select>
-                            </div>
-                       
-                       
-
-                       
-                        </div>
-
-
-                        <div class="location-row">
-
-                        <div class="reporting-period-container">
-                        <label for="reporting_period" data-translate="reporting_period"><?php echo $translations['reporting_period'] ?? 'Reporting Period'; ?></label>
-                        <input 
-                            type="date" 
-                            id="reporting_period" 
-                            name="reporting_period" 
-                            placeholder="Select Reporting Period"
-                            required
-                            min="2010-01-01"
-                            max="2030-12-31"
-                        >
-                        <span class="placeholder-text">Click to select reporting period</span>
+                                <div class="form-group">
+                                    <label for="sex" data-translate="sex"><?php echo $translations['sex'] ?? 'Sex'; ?>:</label>
+                                    <select id="sex" name="sex">
+                                        <option value="" disabled selected>none selected</option>
+                                        <option value="Male" data-translate="male"><?php echo $translations['male'] ?? 'Male'; ?></option>
+                                        <option value="Female" data-translate="female"><?php echo $translations['female'] ?? 'Female'; ?></option>
+                                    </select>
+                                </div>
                             </div>
 
-                            <div class="form-group" >
-                            <label for="age" data-translate="age"><?php echo $translations['age'] ?? 'Age'; ?>:</label>
-                            <input type="number" id="age" name="age" min="10" max= "99">
-                          </div>
+                            <div class="location-row">
+                                <div class="reporting-period-container">
+                                    <label for="reporting_period" data-translate="reporting_period"><?php echo $translations['reporting_period'] ?? 'Reporting Period'; ?></label>
+                                    <input 
+                                        type="date" 
+                                        id="reporting_period" 
+                                        name="reporting_period" 
+                                        placeholder="Select Reporting Period"
+                                        required
+                                        min="2010-01-01"
+                                        max="2030-12-31"
+                                    >
+                                    <span class="placeholder-text">Click to select reporting period</span>
+                                </div>
 
-                          
-                        </div>
-
-                        <!-- Ownership -->
-                        <div class="radio-group">
-                            <label for="ownership" class="radio-label" data-translate="ownership"><?php echo $translations['ownership'] ?? 'Ownership'; ?></label>
-                            <div class="radio-options" id="ownership-options">
-                                <!-- Radio buttons will be populated here -->
+                                <div class="form-group">
+                                    <label for="age" data-translate="age"><?php echo $translations['age'] ?? 'Age'; ?>:</label>
+                                    <input type="number" id="age" name="age" min="10" max="99">
+                                </div>
                             </div>
-                        </div>
 
-                        <p data-translate="rating_instruction"><?php echo $translations['rating_instruction'] ?? '1. Please rate each of the following parameters according to your experience today on a scale of 1 to 4.'; ?></p>
+                            <!-- Ownership -->
+                            <div class="radio-group">
+                                <label for="ownership" class="radio-label" data-translate="ownership"><?php echo $translations['ownership'] ?? 'Ownership'; ?></label>
+                                <div class="radio-options" id="ownership-options">
+                                    <!-- Radio buttons will be populated here -->
+                                </div>
+                            </div>
+
+ <p data-translate="rating_instruction"><?php echo $translations['rating_instruction'] ?? '1. Please rate each of the following parameters according to your experience today on a scale of 1 to 4.'; ?></p>
                         <p data-translate="rating_scale" style="color: red; font-size: 12px; font-style: italic;"><?php echo $translations['rating_scale'] ?? 'where \'0\' means Poor, \'1\' Fair, \'2\' Good and \'3\' Excellent'; ?></p>
 
+                            
+                        <?php endif; ?>
 
+                      
 
 
 

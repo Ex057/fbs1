@@ -191,76 +191,83 @@ unset($option);
 
 
 
-                      
-    <div class="location-row">
+                    <?php
+                    // Fetch the survey type for the current survey
+                    $surveyType = 'local';
+                    $typeResult = $conn->query("SELECT type FROM survey WHERE id = " . intval($surveyId));
+                    if ($typeResult && $typeRow = $typeResult->fetch_assoc()) {
+                        $surveyType = $typeRow['type'];
+                    }
+                    ?>
 
-<!-- Service Unit -->
-<div class="form-group">
-    <label for="serviceUnit" data-translate="service_unit"><?php echo $translations['service_unit'] ?? 'Service Unit'; ?>:</label>
-    <select id="serviceUnit" name="serviceUnit" required>
-        <option value="">none selected</option>
-    </select>
-</div>
+                    <?php if ($surveyType === 'local'): ?>
+                                          
+                        <div class="location-row">
 
+                            <!-- Service Unit -->
+                            <div class="form-group">
+                                <label for="serviceUnit" data-translate="service_unit"><?php echo $translations['service_unit'] ?? 'Service Unit'; ?>:</label>
+                                <select id="serviceUnit" name="serviceUnit" required>
+                                    <option value="">none selected</option>
+                                </select>
+                            </div>
 
-<div class="form-group">
-    <label for="sex" data-translate="sex"><?php echo $translations['sex'] ?? 'Sex'; ?>:</label>
-    <select id="sex" name="sex">
-        <option value="" disabled selected>none selected</option>
-        <option value="Male" data-translate="male"><?php echo $translations['male'] ?? 'Male'; ?></option>
-        <option value="Female" data-translate="female"><?php echo $translations['female'] ?? 'Female'; ?></option>
-    </select>
-    </div>
+                            <div class="form-group">
+                                <label for="sex" data-translate="sex"><?php echo $translations['sex'] ?? 'Sex'; ?>:</label>
+                                <select id="sex" name="sex">
+                                    <option value="" disabled selected>none selected</option>
+                                    <option value="Male" data-translate="male"><?php echo $translations['male'] ?? 'Male'; ?></option>
+                                    <option value="Female" data-translate="female"><?php echo $translations['female'] ?? 'Female'; ?></option>
+                                </select>
+                            </div>
 
+                        </div>
 
+                        <div class="location-row">
+                            <div class="reporting-period-container">
+                                <label for="reporting_period" data-translate="reporting_period"><?php echo $translations['reporting_period'] ?? 'Present Day'; ?></label>
+                                <input 
+                                    type="date" 
+                                    id="reporting_period" 
+                                    name="reporting_period" 
+                                    required
+                                    value="<?php echo date('Y-m-d'); ?>"
+                                    readonly
+                                    style="background-color: #f5f5f5; cursor: not-allowed;"
+                                >
+                                <span class="placeholder-text">Current date is automatically selected</span>
+                            </div>
+                        </div>
 
+                        <div class="form-group" style="width: 400px; padding: 0px;">
+                            <label for="age" data-translate="age"><?php echo $translations['age'] ?? 'Age'; ?>:</label>
+                            <input 
+                                type="number" 
+                                id="age" 
+                                name="age" 
+                                min="14" 
+                                max="99" 
+                                onblur="this.value = Math.max(14, Math.min(99, parseInt(this.value) || ''))"
+                                required
+                                oninvalid="this.setCustomValidity('Please enter an age between 14 and 99')"
+                                oninput="this.setCustomValidity('')"
+                            >
+                        </div>          
 
-</div>
-
-
-<div class="location-row">
-    <div class="reporting-period-container">
-        <label for="reporting_period" data-translate="reporting_period"><?php echo $translations['reporting_period'] ?? 'Present Day'; ?></label>
-        <input 
-            type="date" 
-            id="reporting_period" 
-            name="reporting_period" 
-            required
-            value="<?php echo date('Y-m-d'); ?>"
-            readonly
-            style="background-color: #f5f5f5; cursor: not-allowed;"
-        >
-        <span class="placeholder-text">Current date is automatically selected</span>
-    </div>
-</div>
-
-<div class="form-group" style="width: 400px; padding: 0px;">
-    <label for="age" data-translate="age"><?php echo $translations['age'] ?? 'Age'; ?>:</label>
-    <input 
-        type="number" 
-        id="age" 
-        name="age" 
-        min="14" 
-        max="99" 
-        onblur="this.value = Math.max(14, Math.min(99, parseInt(this.value) || ''))"
-        required
-        oninvalid="this.setCustomValidity('Please enter an age between 14 and 99')"
-        oninput="this.setCustomValidity('')"
-    >
-</div>          
-
- <!-- Ownership -->
- <div class="radio-group">
+                        <!-- Ownership -->
+                        <div class="radio-group">
                             <label for="ownership" class="radio-label" data-translate="ownership"><?php echo $translations['ownership'] ?? 'Ownership'; ?></label>
                             <div class="radio-options" id="ownership-options">
                                 <!-- Radio buttons will be populated here -->
                             </div>
                         </div>
-                        <p data-translate="rating_instruction"><?php echo $translations['rating_instruction'] ?? '1. Please rate each of the following parameters according to your experience today on a scale of 1 to 4.'; ?></p>
+ <p data-translate="rating_instruction"><?php echo $translations['rating_instruction'] ?? '1. Please rate each of the following parameters according to your experience today on a scale of 1 to 4.'; ?></p>
                         <p data-translate="rating_scale" style="color: red; font-size: 12px; font-style: italic;"><?php echo $translations['rating_scale'] ?? 'where \'0\' means Poor, \'1\' Fair, \'2\' Good and \'3\' Excellent'; ?></p>
 
 
 
+                    <?php endif; ?>
+                       
 
                        
             <!-- Dynamically Generate Questions -->

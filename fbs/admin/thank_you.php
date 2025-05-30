@@ -42,15 +42,32 @@ $facilityId = $submission['location_id'];
 $facilityQuery = $conn->query("SELECT name FROM location WHERE id = $facilityId");
 $facility = $facilityQuery->fetch_assoc();
 
-// Get service unit name
-$serviceUnitId = $submission['service_unit_id'];
-$serviceUnitQuery = $conn->query("SELECT name FROM service_unit WHERE id = $serviceUnitId");
-$serviceUnit = $serviceUnitQuery->fetch_assoc();
+// Check survey type before fetching service unit and ownership
+$surveyId = $submission['survey_id'] ?? null;
+$surveyType = 'local';
 
-// Get ownership name
-$ownershipId = $submission['ownership_id'];
-$ownershipQuery = $conn->query("SELECT name FROM owner WHERE id = $ownershipId");
-$ownership = $ownershipQuery->fetch_assoc();
+if ($surveyId) {
+    $surveyTypeQuery = $conn->query("SELECT type FROM survey WHERE id = $surveyId");
+    $surveyTypeRow = $surveyTypeQuery->fetch_assoc();
+    if ($surveyTypeRow && isset($surveyTypeRow['type'])) {
+        $surveyType = $surveyTypeRow['type'];
+    }
+}
+
+$serviceUnit = null;
+$ownership = null;
+
+if ($surveyType === 'local') {
+    // Get service unit name
+    $serviceUnitId = $submission['service_unit_id'];
+    $serviceUnitQuery = $conn->query("SELECT name FROM service_unit WHERE id = $serviceUnitId");
+    $serviceUnit = $serviceUnitQuery->fetch_assoc();
+
+    // Get ownership name
+    $ownershipId = $submission['ownership_id'];
+    $ownershipQuery = $conn->query("SELECT name FROM owner WHERE id = $ownershipId");
+    $ownership = $ownershipQuery->fetch_assoc();
+}
 
 // Get responses
 $submissionId = $submission['id'];
