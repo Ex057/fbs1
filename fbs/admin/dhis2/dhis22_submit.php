@@ -4,43 +4,15 @@ require_once 'dhis2_post_function.php';
 
 class DHIS2SubmissionHandler {
     private $conn;
-    private $instance;
+    private $key;
     private $programUID;
-    private $programType;
     private $fieldMappingCache = [];
 
-    public function __construct(mysqli $conn, int $surveyId) {
+    public function __construct(mysqli $conn, string $key = 'UiO', string $programUID = 'GfDOw2s4mCj') {
         $this->conn = $conn;
-        
-        // Get survey configuration including instance and program info
-        $surveyConfig = $this->getSurveyConfig($surveyId);
-        if (!$surveyConfig) {
-            throw new Exception("Survey configuration not found");
-        }
-        
-        $this->instance = $surveyConfig['dhis2_instance'];
-        $this->programUID = $surveyConfig['program_dataset'];
-        $this->programType = $this->determineProgramType($this->programUID);
-        
+        $this->instance = $key;
+        $this->programUID = $programUID;
         $this->loadFieldMappings();
-    }
-
-    private function getSurveyConfig(int $surveyId): ?array {
-        $stmt = $this->conn->prepare("
-            SELECT dhis2_instance, program_dataset 
-            FROM survey 
-            WHERE id = ? AND type = 'dhis2'
-        ");
-        $stmt->bind_param("i", $surveyId);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        return $result->fetch_assoc();
-    }
-
-    private function determineProgramType(string $programUID): string {
-        // In a real implementation, you might want to query DHIS2 API to get program type
-        // For now, we'll assume it's event unless specified otherwise
-        return 'event';
     }
 
     private function loadFieldMappings(): void {
@@ -78,7 +50,7 @@ class DHIS2SubmissionHandler {
             // Generate a unique event ID to prevent duplication
             $eventUID = $this->generateEventUID($submissionId, $submissionData);
 
-            // Prepare and submit payload based on program type
+            // Prepare and submit payload
             $payload = $this->prepareDHIS2Payload($submissionData, $responses, $eventUID);
 
             // Log complete payload for debugging
@@ -317,27 +289,11 @@ class DHIS2SubmissionHandler {
             }
         }
 
-        // Create the final payload based on program type
-        switch ($this->programType) {
-            case 'tracker':
-                return $this->prepareTrackerPayload($submissionData, $dataValues, $eventUID);
-                
-            case 'aggregate':
-                return $this->prepareAggregatePayload($submissionData, $dataValues);
-                
-            case 'event':
-            default:
-                return $this->prepareEventPayload($submissionData, $dataValues, $eventUID);
-        }
-    }
-
-    private function prepareEventPayload(array $submissionData, array $dataValues, string $eventUID): array {
-        $eventDate = $submissionData['period'] ?? date('Y-m-d');
-        
+        // Create the final payload with proper structure and include event UID
         return [
             'events' => [
                 [
-                    'event' => $eventUID,
+                    'event' => $eventUID, // Set explicit event UID
                     'orgUnit' => $submissionData['location_uid'],
                     'program' => $this->programUID,
                     'eventDate' => $eventDate,
@@ -346,49 +302,6 @@ class DHIS2SubmissionHandler {
                     'dataValues' => $dataValues
                 ]
             ]
-        ];
-    }
-
-    private function prepareTrackerPayload(array $submissionData, array $dataValues, string $eventUID): array {
-        $eventDate = $submissionData['period'] ?? date('Y-m-d');
-        
-        return [
-            'enrollments' => [
-                [
-                    'enrollment' => $eventUID,
-                    'orgUnit' => $submissionData['location_uid'],
-                    'program' => $this->programUID,
-                    'enrollmentDate' => $eventDate,
-                    'incidentDate' => $eventDate,
-                    'events' => [
-                        [
-                            'event' => $eventUID,
-                            'program' => $this->programUID,
-                            'orgUnit' => $submissionData['location_uid'],
-                            'eventDate' => $eventDate,
-                            'dataValues' => $dataValues
-                        ]
-                    ]
-                ]
-            ]
-        ];
-    }
-
-    private function prepareAggregatePayload(array $submissionData, array $dataValues): array {
-        $period = $submissionData['period'] ?? date('Y-m-d');
-        
-        // Convert YYYY-MM-DD to DHIS2 period format (YYYYMM)
-        $period = date('Ym', strtotime($period));
-        
-        return [
-            'dataValues' => array_map(function($dv) use ($period) {
-                return [
-                    'dataElement' => $dv['dataElement'],
-                    'period' => $period,
-                    'orgUnit' => $submissionData['location_uid'],
-                    'value' => $dv['value']
-                ];
-            }, $dataValues)
         ];
     }
 
@@ -432,20 +345,8 @@ class DHIS2SubmissionHandler {
 
     private function submitToDHIS2(array $payload): array {
         try {
-            $endpoint = '/api/events';
-            
-            // Adjust endpoint based on program type
-            switch ($this->programType) {
-                case 'tracker':
-                    $endpoint = '/api/tracker';
-                    break;
-                case 'aggregate':
-                    $endpoint = '/api/dataValueSets';
-                    break;
-            }
-
             // Make single API call - no retries to prevent duplicates
-            $response = dhis2_post($endpoint, $payload, $this->instance);
+            $response = dhis2_post('/api/events', $payload, $this->instance);
 
             if ($response === null) {
                 throw new Exception("DHIS2 API returned null response");

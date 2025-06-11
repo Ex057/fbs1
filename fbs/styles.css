@@ -59,7 +59,7 @@ body {
 
 /* Container styles */
 .container {
-    max-width: 700px;
+    max-width: 1000px;
     margin: 20px auto; /* Added vertical margin */
     padding: 20px;
     border: 1px solid #ccc;

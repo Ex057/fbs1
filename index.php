@@ -5,6 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FormBase Survey Tool</title>
     <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1e40af;
+            --secondary: #fbbf24;
+            --secondary-dark: #f59e42;
+            --accent: #10b981;
+            --background-gradient: linear-gradient(135deg, #e0e7ff 0%, #f0fdfa 100%);
+            --header-bg: #f9fafb;
+            --feature-bg: #f3f4f6;
+            --feature-hover: #fffbe6;
+            --text-main: #22223b;
+            --text-muted: #6b7280;
+            --footer-bg: #22223b;
+            --footer-text: #fbbf24;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -14,8 +30,8 @@
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             line-height: 1.6;
-            color: #333;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: var(--text-main);
+            background: var(--background-gradient);
             min-height: 100vh;
         }
 
@@ -26,10 +42,10 @@
         }
 
         header {
-            background: rgba(255, 255, 255, 0.95);
+            background: var(--header-bg);
             backdrop-filter: blur(10px);
             padding: 1rem 0;
-            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.06);
         }
 
         .header-content {
@@ -43,7 +59,8 @@
         .logo {
             font-size: 1.8rem;
             font-weight: bold;
-            color: #4a5568;
+            color: var(--primary-dark);
+            letter-spacing: 1px;
         }
 
         .nav-buttons {
@@ -66,40 +83,40 @@
         }
 
         .btn-primary {
-            background: #4299e1;
+            background: var(--primary);
             color: white;
         }
 
         .btn-primary:hover {
-            background: #3182ce;
+            background: var(--primary-dark);
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(66, 153, 225, 0.4);
+            box-shadow: 0 5px 15px rgba(37, 99, 235, 0.18);
         }
 
         .btn-secondary {
-            background: transparent;
-            color: #4a5568;
-            border: 2px solid #4a5568;
+            background: var(--secondary);
+            color: var(--text-main);
+            border: 2px solid var(--secondary-dark);
         }
 
         .btn-secondary:hover {
-            background: #4a5568;
+            background: var(--secondary-dark);
             color: white;
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(74, 85, 104, 0.3);
+            box-shadow: 0 5px 15px rgba(251, 191, 36, 0.18);
         }
 
         .hero {
             padding: 80px 0;
             text-align: center;
-            color: white;
+            color: var(--primary-dark);
         }
 
         .hero h1 {
             font-size: 3.5rem;
             margin-bottom: 20px;
             font-weight: 700;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            text-shadow: 0 2px 4px rgba(37, 99, 235, 0.08);
         }
 
         .hero p {
@@ -108,11 +125,12 @@
             max-width: 600px;
             margin-left: auto;
             margin-right: auto;
-            opacity: 0.9;
+            opacity: 0.95;
+            color: var(--text-muted);
         }
 
         .features {
-            background: white;
+            background: var(--feature-bg);
             padding: 80px 0;
             margin-top: -40px;
             border-radius: 40px 40px 0 0;
@@ -122,7 +140,7 @@
             text-align: center;
             font-size: 2.5rem;
             margin-bottom: 60px;
-            color: #2d3748;
+            color: var(--primary-dark);
         }
 
         .features-grid {
@@ -133,45 +151,48 @@
         }
 
         .feature-card {
-            background: #f7fafc;
+            background: white;
             padding: 40px 30px;
             border-radius: 15px;
             text-align: center;
             transition: all 0.3s ease;
-            border: 1px solid #e2e8f0;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.04);
         }
 
         .feature-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
-            background: white;
+            transform: translateY(-5px) scale(1.03);
+            box-shadow: 0 15px 35px rgba(251, 191, 36, 0.10);
+            background: var(--feature-hover);
         }
 
         .feature-icon {
             width: 80px;
             height: 80px;
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background: linear-gradient(135deg, var(--primary), var(--accent));
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             margin: 0 auto 20px;
             font-size: 2rem;
+            color: white;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.10);
         }
 
         .feature-card h3 {
             font-size: 1.5rem;
             margin-bottom: 15px;
-            color: #2d3748;
+            color: var(--primary-dark);
         }
 
         .feature-card p {
-            color: #4a5568;
+            color: var(--text-muted);
             line-height: 1.6;
         }
 
         .cta-section {
-            background: linear-gradient(135deg, #4299e1, #667eea);
+            background: linear-gradient(135deg, var(--accent), var(--primary));
             padding: 80px 0;
             text-align: center;
             color: white;
@@ -185,7 +206,7 @@
         .cta-section p {
             font-size: 1.2rem;
             margin-bottom: 40px;
-            opacity: 0.9;
+            opacity: 0.95;
         }
 
         .cta-buttons {
@@ -202,18 +223,19 @@
 
         .btn-white {
             background: white;
-            color: #4299e1;
+            color: var(--primary);
         }
 
         .btn-white:hover {
-            background: #f7fafc;
+            background: var(--feature-bg);
+            color: var(--primary-dark);
             transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.08);
         }
 
         footer {
-            background: #2d3748;
-            color: white;
+            background: var(--footer-bg);
+            color: var(--footer-text);
             text-align: center;
             padding: 40px 0;
         }

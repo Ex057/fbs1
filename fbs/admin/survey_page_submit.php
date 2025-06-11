@@ -38,7 +38,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Generate a unique identifier (UID)
     $uid = generateUID();
 
-    // --- Fetch survey type ---
+    // --- Fetch survey type (still useful for local logic) ---
     $surveyType = 'local'; // Default to 'local'
     $stmt = $conn->prepare("SELECT type FROM survey WHERE id = ?");
     $stmt->bind_param("i", $surveyId);
@@ -50,20 +50,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $stmt->close();
     // --- End fetch survey type ---
 
-    // Initialize variables based on survey type
+    // Initialize variables based on survey type (still applicable for local storage)
     $age = null;
     $sex = null;
     $reportingPeriod = null;
     $serviceUnitId = null;
     $ownershipId = null;
 
-    if ($surveyType === 'local') {
-        $age = isset($_POST['age']) ? intval($_POST['age']) : null;
-        $sex = isset($_POST['sex']) ? sanitize($conn, $_POST['sex']) : null;
-        $reportingPeriod = isset($_POST['reporting_period']) ? sanitize($conn, $_POST['reporting_period']) : null;
-        $serviceUnitId = isset($_POST['serviceUnit']) ? intval($_POST['serviceUnit']) : null;
-        $ownershipId = isset($_POST['ownership']) ? intval($_POST['ownership']) : null;
-    }
+    // These fields are stored locally regardless, but might be specific to 'local' survey forms
+    // if your forms for 'dhis2' type surveys have different inputs.
+    // Ensure that if 'dhis2' surveys use these, they are always present in the POST data.
+    $age = isset($_POST['age']) ? intval($_POST['age']) : null;
+    $sex = isset($_POST['sex']) ? sanitize($conn, $_POST['sex']) : null;
+    $reportingPeriod = isset($_POST['reporting_period']) ? sanitize($conn, $_POST['reporting_period']) : null;
+    $serviceUnitId = isset($_POST['serviceUnit']) ? intval($_POST['serviceUnit']) : null;
+    $ownershipId = isset($_POST['ownership']) ? intval($_POST['ownership']) : null;
     
     $locationId = isset($_POST['facility_id']) ? intval($_POST['facility_id']) : null;
 
@@ -152,17 +153,27 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // Store UID in session to prevent resubmission
         $_SESSION['submitted_uid'] = $uid;
 
-        // In your survey_page_submit.php:
-        $dhis2Submitter = new DHIS2SubmissionHandler($conn);
-        $result = $dhis2Submitter->processSubmission($submissionId);
+        // --- DHIS2 Submission Logic (Now applies to all types, but checks for config) ---
+        try {
+            $dhis2Submitter = new DHIS2SubmissionHandler($conn, $surveyId); // Instantiate unconditionally
+            
+            if ($dhis2Submitter->isReadyForSubmission()) { // Check if configuration was successful
+                $result = $dhis2Submitter->processSubmission($submissionId);
 
-        if (!$result['success']) {
-            // Handle error (log it, notify admin, etc.)
-            error_log("Final submission error: " . $result['message']);
-        } else {
-            // Success - even if it was a duplicate
-            // $result['message'] contains details
+                if (!$result['success']) {
+                    error_log("DHIS2 submission failed for submission ID $submissionId (Survey ID: $surveyId): " . $result['message']);
+                    // You might want to log this to a separate table for failed DHIS2 submissions
+                } else {
+                    error_log("DHIS2 submission successful or already processed for submission ID $submissionId (Survey ID: $surveyId): " . $result['message']);
+                }
+            } else {
+                error_log("Skipping DHIS2 submission for survey ID $surveyId: No valid DHIS2 configuration found in the database (dhis2_instance or program_dataset is missing/empty).");
+            }
+        } catch (Exception $e) {
+            // Catch any exceptions specifically from the DHIS2 handler (e.g., if determineProgramType fails)
+            error_log("Caught DHIS2 handler exception for survey ID $surveyId, submission ID $submissionId: " . $e->getMessage());
         }
+        // --- End DHIS2 Submission Logic ---
 
         // Redirect to thank you page
         header("Location: thank_you.php?uid=$uid");
@@ -171,6 +182,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // Roll back transaction on error
         $conn->rollback();
         echo "Error: " . $e->getMessage();
+        error_log("Caught main submission exception for survey ID $surveyId, submission ID $submissionId: " . $e->getMessage());
     }
 
     // Close prepared statements
