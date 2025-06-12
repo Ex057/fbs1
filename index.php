@@ -6,19 +6,19 @@
     <title>FormBase Survey Tool</title>
     <style>
         :root {
-            --primary: #2563eb;
-            --primary-dark: #1e40af;
-            --secondary: #fbbf24;
-            --secondary-dark: #f59e42;
-            --accent: #10b981;
-            --background-gradient: linear-gradient(135deg, #e0e7ff 0%, #f0fdfa 100%);
-            --header-bg: #f9fafb;
-            --feature-bg: #f3f4f6;
-            --feature-hover: #fffbe6;
-            --text-main: #22223b;
-            --text-muted: #6b7280;
-            --footer-bg: #22223b;
-            --footer-text: #fbbf24;
+            --primary: #2a5298;
+            --primary-dark: #1c355e;
+            --secondary: #f7c873;
+            --secondary-dark: #e6a93b;
+            --accent: #4f8edc;
+            --background-gradient: linear-gradient(135deg, #e3eafc 0%, #f5f8ff 100%);
+            --header-bg: #f7faff;
+            --feature-bg: #f0f4fa;
+            --feature-hover: #eaf1fb;
+            --text-main: #1c355e;
+            --text-muted: #5c6b8a;
+            --footer-bg: #1c355e;
+            --footer-text: #f7c873;
         }
 
         * {
@@ -29,10 +29,11 @@
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
+            line-height: 1.7;
             color: var(--text-main);
             background: var(--background-gradient);
             min-height: 100vh;
+            font-size: 1.08rem;
         }
 
         .container {
@@ -44,7 +45,7 @@
         header {
             background: var(--header-bg);
             backdrop-filter: blur(10px);
-            padding: 1rem 0;
+            padding: 1.2rem 0;
             box-shadow: 0 2px 20px rgba(0, 0, 0, 0.06);
         }
 
@@ -57,7 +58,7 @@
         }
 
         .logo {
-            font-size: 1.8rem;
+            font-size: 2.1rem;
             font-weight: bold;
             color: var(--primary-dark);
             letter-spacing: 1px;
@@ -70,10 +71,10 @@
         }
 
         .btn {
-            padding: 12px 24px;
+            padding: 13px 28px;
             border: none;
             border-radius: 8px;
-            font-size: 1rem;
+            font-size: 1.08rem;
             font-weight: 600;
             cursor: pointer;
             text-decoration: none;
@@ -90,7 +91,7 @@
         .btn-primary:hover {
             background: var(--primary-dark);
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(37, 99, 235, 0.18);
+            box-shadow: 0 5px 15px rgba(42, 82, 152, 0.18);
         }
 
         .btn-secondary {
@@ -103,29 +104,30 @@
             background: var(--secondary-dark);
             color: white;
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(251, 191, 36, 0.18);
+            box-shadow: 0 5px 15px rgba(247, 200, 115, 0.18);
         }
 
         .hero {
-            padding: 80px 0;
+            padding: 90px 0 70px 0;
             text-align: center;
             color: var(--primary-dark);
         }
 
         .hero h1 {
-            font-size: 3.5rem;
-            margin-bottom: 20px;
+            font-size: 3rem;
+            margin-bottom: 22px;
             font-weight: 700;
-            text-shadow: 0 2px 4px rgba(37, 99, 235, 0.08);
+            text-shadow: 0 2px 4px rgba(42, 82, 152, 0.08);
+            letter-spacing: 0.5px;
         }
 
         .hero p {
-            font-size: 1.3rem;
-            margin-bottom: 40px;
-            max-width: 600px;
+            font-size: 1.25rem;
+            margin-bottom: 42px;
+            max-width: 650px;
             margin-left: auto;
             margin-right: auto;
-            opacity: 0.95;
+            opacity: 0.97;
             color: var(--text-muted);
         }
 
@@ -138,7 +140,7 @@
 
         .features h2 {
             text-align: center;
-            font-size: 2.5rem;
+            font-size: 2.2rem;
             margin-bottom: 60px;
             color: var(--primary-dark);
         }
@@ -152,17 +154,17 @@
 
         .feature-card {
             background: white;
-            padding: 40px 30px;
+            padding: 38px 28px;
             border-radius: 15px;
             text-align: center;
             transition: all 0.3s ease;
             border: 1px solid #e5e7eb;
-            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.04);
+            box-shadow: 0 2px 8px rgba(79, 142, 220, 0.04);
         }
 
         .feature-card:hover {
             transform: translateY(-5px) scale(1.03);
-            box-shadow: 0 15px 35px rgba(251, 191, 36, 0.10);
+            box-shadow: 0 15px 35px rgba(247, 200, 115, 0.10);
             background: var(--feature-hover);
         }
 
@@ -175,20 +177,21 @@
             align-items: center;
             justify-content: center;
             margin: 0 auto 20px;
-            font-size: 2rem;
+            font-size: 2.1rem;
             color: white;
-            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.10);
+            box-shadow: 0 4px 12px rgba(79, 142, 220, 0.10);
         }
 
         .feature-card h3 {
-            font-size: 1.5rem;
+            font-size: 1.25rem;
             margin-bottom: 15px;
             color: var(--primary-dark);
         }
 
         .feature-card p {
             color: var(--text-muted);
-            line-height: 1.6;
+            line-height: 1.7;
+            font-size: 1.05rem;
         }
 
         .cta-section {
@@ -199,14 +202,14 @@
         }
 
         .cta-section h2 {
-            font-size: 2.5rem;
+            font-size: 2.2rem;
             margin-bottom: 20px;
         }
 
         .cta-section p {
-            font-size: 1.2rem;
+            font-size: 1.15rem;
             margin-bottom: 40px;
-            opacity: 0.95;
+            opacity: 0.97;
         }
 
         .cta-buttons {
@@ -218,7 +221,7 @@
 
         .btn-large {
             padding: 16px 32px;
-            font-size: 1.1rem;
+            font-size: 1.13rem;
         }
 
         .btn-white {
@@ -230,7 +233,7 @@
             background: var(--feature-bg);
             color: var(--primary-dark);
             transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.08);
+            box-shadow: 0 8px 25px rgba(79, 142, 220, 0.08);
         }
 
         footer {
@@ -242,19 +245,19 @@
 
         @media (max-width: 768px) {
             .hero h1 {
-                font-size: 2.5rem;
+                font-size: 2.1rem;
             }
 
             .hero p {
-                font-size: 1.1rem;
+                font-size: 1rem;
             }
 
             .features h2 {
-                font-size: 2rem;
+                font-size: 1.4rem;
             }
 
             .cta-section h2 {
-                font-size: 2rem;
+                font-size: 1.4rem;
             }
 
             .header-content {
@@ -275,11 +278,11 @@
         @media (max-width: 480px) {
             .btn {
                 padding: 10px 20px;
-                font-size: 0.9rem;
+                font-size: 0.95rem;
             }
 
             .btn-large {
-                padding: 14px 28px;
+                padding: 13px 22px;
                 font-size: 1rem;
             }
         }
