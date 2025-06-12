@@ -218,7 +218,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             // Process attributes if tracker program (now as questions)
-            if (isset($_POST['attributes']) && !empty($_POST['attributes'])) {
+            // This part now checks for program_type as well
+            if (isset($_POST['attributes']) && !empty($_POST['attributes']) && $_POST['program_type'] == 'tracker') {
                 $attributes = json_decode($_POST['attributes'], true);
 
                 foreach ($attributes as $attrId => $attr) {
@@ -273,9 +274,20 @@ function getLocalDHIS2Config() {
     return $instances;
 }
 
-function getTrackerPrograms($instance) {
-    // dhis2_get is assumed to be defined in dhis2_shared.php or dhis2_get_function.php
-    $programs = dhis2_get('/api/programs?fields=id,name', $instance);
+/**
+ * Fetches programs from DHIS2 based on program type.
+ * 'event' will fetch event programs.
+ * 'tracker' will fetch tracker programs.
+ * If no type is specified, it fetches all.
+ */
+function getPrograms($instance, $programType = null) {
+    $filter = '';
+    if ($programType === 'event') {
+        $filter = '&filter=programType:eq:WITHOUT_REGISTRATION';
+    } elseif ($programType === 'tracker') {
+        $filter = '&filter=programType:eq:WITH_REGISTRATION';
+    }
+    $programs = dhis2_get('/api/programs?fields=id,name,programType' . $filter, $instance);
     return $programs['programs'] ?? [];
 }
 
@@ -285,7 +297,17 @@ function getDatasets($instance) {
     return $datasets['dataSets'] ?? [];
 }
 
-function getProgramDetails($instance, $domain, $programId) {
+/**
+ * Get details for a specific DHIS2 program or dataset, including data elements and attributes.
+ *
+ * @param string $instance The DHIS2 instance key.
+ * @param string $domain 'tracker' or 'aggregate'.
+ * @param string $programId The ID of the program or dataset.
+ * @param string|null $programType 'event' or 'tracker' if domain is 'tracker'.
+ * @return array Structured array with program details, data elements, attributes, and option sets.
+ * @throws Exception If API call fails or response is invalid.
+ */
+function getProgramDetails($instance, $domain, $programId, $programType = null) {
     $result = [
         'program' => null,
         'dataElements' => [],
@@ -294,51 +316,64 @@ function getProgramDetails($instance, $domain, $programId) {
     ];
 
     if ($domain === 'tracker') {
-        // Get program details
-        $programInfo = dhis2_get('/api/programs/' . $programId . '?fields=id,name,programStages[id,name,programStageDataElements[dataElement[id,name,optionSet[id,name]]]', $instance);
-        $result['program'] = [
-            'id' => $programInfo['id'],
-            'name' => $programInfo['name']
-        ];
+        if ($programType === 'tracker') { // This is a WITH_REGISTRATION program
+            // Fetch program details including tracked entity attributes only (NO data elements)
+            $programInfo = dhis2_get('/api/programs/' . $programId . '?fields=id,name,programType,programTrackedEntityAttributes[trackedEntityAttribute[id,name,optionSet[id,name]]]', $instance);
 
-        // Get data elements
-        if (!empty($programInfo['programStages'])) {
-            foreach ($programInfo['programStages'] as $stage) {
-                if (isset($stage['programStageDataElements'])) {
-                    foreach ($stage['programStageDataElements'] as $psde) {
-                        $de = $psde['dataElement'];
-                        $result['dataElements'][$de['id']] = [
-                            'name' => $de['name'],
-                            'optionSet' => $de['optionSet'] ?? null
-                        ];
+            $result['program'] = [
+          'id' => $programInfo['id'],
+          'name' => $programInfo['name'],
+          'programType' => $programInfo['programType'] // Store the program type
+            ];
 
-                        // Check for option set
-                        if (!empty($de['optionSet'])) {
-                            $result['optionSets'][$de['optionSet']['id']] = $de['optionSet'];
+            // Do NOT fetch or process data elements for tracker programs
+
+            // Get program attributes (tracker-level data)
+            if (!empty($programInfo['programTrackedEntityAttributes'])) {
+          foreach ($programInfo['programTrackedEntityAttributes'] as $attr) {
+              $tea = $attr['trackedEntityAttribute'];
+              $result['attributes'][$tea['id']] = [
+            'name' => $tea['name'],
+            'optionSet' => $tea['optionSet'] ?? null
+              ];
+              if (!empty($tea['optionSet'])) {
+            $result['optionSets'][$tea['optionSet']['id']] = $tea['optionSet'];
+              }
+          }
+            }
+
+        } elseif ($programType === 'event') { // This is a WITHOUT_REGISTRATION program
+            // Fetch program details for event program (only data elements from stages)
+            $programInfo = dhis2_get('/api/programs/' . $programId . '?fields=id,name,programType,programStages[id,name,programStageDataElements[dataElement[id,name,optionSet[id,name]]]]', $instance);
+
+            $result['program'] = [
+                'id' => $programInfo['id'],
+                'name' => $programInfo['name'],
+                'programType' => $programInfo['programType'] // Store the program type
+            ];
+
+            // Get data elements from program stages
+            if (!empty($programInfo['programStages'])) {
+                foreach ($programInfo['programStages'] as $stage) {
+                    if (isset($stage['programStageDataElements'])) {
+                        foreach ($stage['programStageDataElements'] as $psde) {
+                            $de = $psde['dataElement'];
+                            $result['dataElements'][$de['id']] = [
+                                'name' => $de['name'],
+                                'optionSet' => $de['optionSet'] ?? null
+                            ];
+                            if (!empty($de['optionSet'])) {
+                                $result['optionSets'][$de['optionSet']['id']] = $de['optionSet'];
+                            }
                         }
                     }
                 }
             }
-        }
-
-        // Get program attributes
-        $programAttrs = dhis2_get('/api/programs/' . $programId . '?fields=programTrackedEntityAttributes[trackedEntityAttribute[id,name,optionSet[id,name]]]', $instance);
-        if (!empty($programAttrs['programTrackedEntityAttributes'])) {
-            foreach ($programAttrs['programTrackedEntityAttributes'] as $attr) {
-                $tea = $attr['trackedEntityAttribute'];
-                $result['attributes'][$tea['id']] = [
-                    'name' => $tea['name'],
-                    'optionSet' => $tea['optionSet'] ?? null
-                ];
-
-                // Check for option set
-                if (!empty($tea['optionSet'])) {
-                    $result['optionSets'][$tea['optionSet']['id']] = $tea['optionSet'];
-                }
-            }
+        } else {
+            throw new Exception("Invalid program type for tracker domain.");
         }
     } elseif ($domain === 'aggregate') {
-        // Get dataset details
+        // Get dataset details (existing logic)
         $datasetInfo = dhis2_get('/api/dataSets/' . $programId . '?fields=id,name,dataSetElements[dataElement[id,name,optionSet[id,name]]]', $instance);
         $result['program'] = [
             'id' => $datasetInfo['id'],
@@ -429,19 +464,53 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 1 && $_GET['survey_source'] == 'dhi
         <?php endif; ?>
 
         <?php if (isset($_GET['dhis2_instance']) && !empty($_GET['dhis2_instance']) &&
-             isset($_GET['domain']) && !empty($_GET['domain'])): ?>
+             isset($_GET['domain']) && $_GET['domain'] == 'tracker'): // Only show program type if domain is tracker ?>
+        <div class="col-md-4">
+          <div class="form-group mb-3">
+            <label class="form-control-label">Select Program Type</label>
+            <select name="program_type" class="form-control" id="program-type-select">
+              <option value="">-- Select Program Type --</option>
+              <option value="event" <?= (isset($_GET['program_type']) && $_GET['program_type'] == 'event') ? 'selected' : '' ?>>Event Program</option>
+              <option value="tracker" <?= (isset($_GET['program_type']) && $_GET['program_type'] == 'tracker') ? 'selected' : '' ?>>Tracker Program</option>
+            </select>
+          </div>
+        </div>
+        <?php endif; ?>
+
+
+        <?php if (isset($_GET['dhis2_instance']) && !empty($_GET['dhis2_instance']) &&
+             isset($_GET['domain']) && !empty($_GET['domain']) &&
+             (($_GET['domain'] == 'tracker' && isset($_GET['program_type']) && !empty($_GET['program_type'])) || $_GET['domain'] == 'aggregate')): ?>
         <div class="col-md-4">
           <div class="form-group mb-3">
             <label class="form-control-label">
-              <?= $_GET['domain'] == 'tracker' ? 'Select Program' : 'Select Dataset' ?>
+              <?php
+                if ($_GET['domain'] == 'tracker') {
+                    echo ($_GET['program_type'] == 'tracker' ? 'Select Tracker Program' : 'Select Event Program');
+                } else {
+                    echo 'Select Dataset';
+                }
+              ?>
             </label>
             <select name="program_id" class="form-control" id="program-select">
-              <option value="">-- Select <?= $_GET['domain'] == 'tracker' ? 'Program' : 'Dataset' ?> --</option>
+              <option value="">-- Select
+                <?php
+                if ($_GET['domain'] == 'tracker') {
+                    echo ($_GET['program_type'] == 'tracker' ? 'Tracker Program' : 'Event Program');
+                } else {
+                    echo 'Dataset';
+                }
+                ?>
+                --</option>
               <?php
                 try {
-                    $programs = $_GET['domain'] == 'tracker'
-                        ? getTrackerPrograms($_GET['dhis2_instance'])
-                        : getDatasets($_GET['dhis2_instance']);
+                    $programs = [];
+                    if ($_GET['domain'] == 'tracker' && isset($_GET['program_type'])) {
+                        $programs = getPrograms($_GET['dhis2_instance'], $_GET['program_type']);
+                    } elseif ($_GET['domain'] == 'aggregate') {
+                        $programs = getDatasets($_GET['dhis2_instance']);
+                    }
+
 
                     foreach ($programs as $program) : ?>
                     <option value="<?= htmlspecialchars($program['id']) ?>"
@@ -463,19 +532,25 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 1 && $_GET['survey_source'] == 'dhi
     // Display program preview if all selections are made
     if (isset($_GET['dhis2_instance']) && !empty($_GET['dhis2_instance']) &&
         isset($_GET['domain']) && !empty($_GET['domain']) &&
-        isset($_GET['program_id']) && !empty($_GET['program_id'])) {
+        isset($_GET['program_id']) && !empty($_GET['program_id']) &&
+        (($_GET['domain'] == 'tracker' && isset($_GET['program_type']) && !empty($_GET['program_type'])) || $_GET['domain'] == 'aggregate')) {
 
         try {
             $programDetails = getProgramDetails(
                 $_GET['dhis2_instance'],
                 $_GET['domain'],
-                $_GET['program_id']
+                $_GET['program_id'],
+                ($_GET['domain'] == 'tracker' ? $_GET['program_type'] : null)
             );
 
             if ($programDetails['program']) {
                 ?>
                 <div class="program-preview shadow-sm mb-4">
                   <h3 class="mb-3 text-primary">Program Preview: <?= htmlspecialchars($programDetails['program']['name']) ?></h3>
+                  <p><strong>Domain:</strong> <?= htmlspecialchars(ucfirst($_GET['domain'])) ?></p>
+                  <?php if ($_GET['domain'] == 'tracker'): ?>
+                  <p><strong>Program Type:</strong> <?= htmlspecialchars(ucfirst($_GET['program_type'])) ?></p>
+                  <?php endif; ?>
 
                   <?php if (!empty($programDetails['dataElements'])): ?>
                   <div class="preview-section">
@@ -500,7 +575,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 1 && $_GET['survey_source'] == 'dhi
                   </div>
                   <?php endif; ?>
 
-                  <?php if (!empty($programDetails['attributes']) && $_GET['domain'] == 'tracker'): ?>
+                  <?php if (!empty($programDetails['attributes']) && $_GET['domain'] == 'tracker' && $_GET['program_type'] == 'tracker'): ?>
                   <div class="preview-section">
                     <h4>Tracked Entity Attributes</h4>
                     <?php foreach ($programDetails['attributes'] as $attrId => $attr): ?>
@@ -529,9 +604,9 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 1 && $_GET['survey_source'] == 'dhi
                     <input type="hidden" name="program_id" value="<?= htmlspecialchars($_GET['program_id']) ?>">
                     <input type="hidden" name="program_name" value="<?= htmlspecialchars($programDetails['program']['name']) ?>">
                     <input type="hidden" name="data_elements" value="<?= htmlspecialchars(json_encode($programDetails['dataElements'])) ?>">
-                    <?php if ($_GET['domain'] == 'tracker'): ?>
+                    <?php if ($_GET['domain'] == 'tracker' && $_GET['program_type'] == 'tracker'): ?>
                       <input type="hidden" name="attributes" value="<?= htmlspecialchars(json_encode($programDetails['attributes'])) ?>">
-                    <?php endif; ?>
+                      <input type="hidden" name="program_type" value="tracker"> <?php endif; ?>
 
                     <div class="text-center mt-4">
                       <button type="submit" name="create_survey" class="btn btn-primary action-btn shadow">
@@ -950,7 +1025,10 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 1 && $_GET['survey_source'] == 'dhi
                     let url = '<?= basename($_SERVER['PHP_SELF']) ?>?survey_source=dhis2';
                     if (params.dhis2_instance) url += '&dhis2_instance=' + encodeURIComponent(params.dhis2_instance);
                     if (params.domain) url += '&domain=' + encodeURIComponent(params.domain);
+                    // Add program_type to the URL parameters
+                    if (params.program_type) url += '&program_type=' + encodeURIComponent(params.program_type);
                     if (params.program_id) url += '&program_id=' + encodeURIComponent(params.program_id);
+
 
                     document.getElementById('dhis2-survey-container').innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-3">Loading DHIS2 details...</p></div>';
                     fetch(url + '&ajax=1')
@@ -969,11 +1047,21 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 1 && $_GET['survey_source'] == 'dhi
                           domain: this.value
                         });
                       };
+                      // New: Event listener for Program Type Select
+                      let programTypeSel = document.getElementById('program-type-select');
+                      if (programTypeSel) programTypeSel.onchange = function() {
+                        loadDHIS2SurveyForm({
+                          dhis2_instance: document.getElementById('dhis2-instance-select').value,
+                          domain: document.getElementById('domain-select').value,
+                          program_type: this.value // Pass the selected program type
+                        });
+                      };
                       let progSel = document.getElementById('program-select');
                       if (progSel) progSel.onchange = function() {
                         loadDHIS2SurveyForm({
                           dhis2_instance: document.getElementById('dhis2-instance-select').value,
                           domain: document.getElementById('domain-select').value,
+                          program_type: document.getElementById('program-type-select') ? document.getElementById('program-type-select').value : null, // Ensure program_type is passed
                           program_id: this.value
                         });
                       };
@@ -987,6 +1075,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 1 && $_GET['survey_source'] == 'dhi
                   loadDHIS2SurveyForm({
                     <?php if (isset($_GET['dhis2_instance'])): ?>dhis2_instance: "<?= htmlspecialchars($_GET['dhis2_instance']) ?>",<?php endif; ?>
                     <?php if (isset($_GET['domain'])): ?>domain: "<?= htmlspecialchars($_GET['domain']) ?>",<?php endif; ?>
+                    <?php if (isset($_GET['program_type'])): ?>program_type: "<?= htmlspecialchars($_GET['program_type']) ?>",<?php endif; ?>
                     <?php if (isset($_GET['program_id'])): ?>program_id: "<?= htmlspecialchars($_GET['program_id']) ?>",<?php endif; ?>
                   });
                   </script>
