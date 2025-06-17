@@ -628,22 +628,54 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 1 && $_GET['survey_source'] == 'dhi
                     <?php foreach ($programDetails['dataElements'] as $deId => $element): ?>
                       <div class="preview-item">
                         <strong><?= htmlspecialchars($element['name']) ?></strong>
-                                                <?php if (!empty($element['optionSet'])): ?>
+                        <?php if ($_GET['domain'] != 'aggregate' && !empty($element['optionSet'])): ?>
                           <div>
-                            <small>Option Set: <?= htmlspecialchars($element['optionSet']['name']) ?></small>
-                            <?php if (!empty($element['options'])): ?>
-                              <div class="mt-2">
-                                <?php foreach ($element['options'] as $option): ?>
-                                  <span class="option-item"><?= htmlspecialchars($option['name']) ?></span>
-                                <?php endforeach; ?>
-                              </div>
-                            <?php endif; ?>
+                          <small>Option Set: <?= htmlspecialchars($element['optionSet']['name']) ?></small>
+                          <?php if (!empty($element['options'])): ?>
+                            <div class="mt-2">
+                            <?php foreach ($element['options'] as $option): ?>
+                              <span class="option-item"><?= htmlspecialchars($option['name']) ?></span>
+                            <?php endforeach; ?>
+                            </div>
+                          <?php endif; ?>
                           </div>
+                        <?php elseif ($_GET['domain'] == 'aggregate'): ?>
+                          <?php
+                          // For aggregate, fetch and show the category combo for each data element (not the dataset's)
+                          $deCategoryCombo = null;
+                          try {
+                          $deDetails = dhis2_get('/api/dataElements/' . $deId . '?fields=categoryCombo[id,name,categoryOptionCombos[id,name]]', $_GET['dhis2_instance']);
+                          if (!empty($deDetails['categoryCombo'])) {
+                            $deCategoryCombo = $deDetails['categoryCombo'];
+                          }
+                          } catch (Exception $e) {
+                          $deCategoryCombo = null;
+                          }
+                          ?>
+                          <?php if (!empty($deCategoryCombo) && (empty($deCategoryCombo['name']) || !preg_match('/default/i', $deCategoryCombo['name']))): ?>
+                          <div>
+                          <small>Category Combination: <?= htmlspecialchars($deCategoryCombo['name']) ?></small>
+                          <?php if (!empty($deCategoryCombo['categoryOptionCombos'])): ?>
+                          <div class="mt-2">
+                            <small>Category Option Combos:</small>
+                            <div class="mt-2">
+                            <?php foreach ($deCategoryCombo['categoryOptionCombos'] as $catOptCombo): ?>
+                            <span class="option-item"><?= htmlspecialchars($catOptCombo['name']) ?></span>
+                            <?php endforeach; ?>
+                            </div>
+                          </div>
+                          <?php endif; ?>
+                          </div>
+                          <?php else: ?>
+                          <div>
+                          <small>No specific category combination for this data element.</small>
+                          </div>
+                          <?php endif; ?>
                         <?php endif; ?>
+                        </div>
+                      <?php endforeach; ?>
                       </div>
-                    <?php endforeach; ?>
-                  </div>
-                  <?php endif; ?>
+                      <?php endif; ?>
 
                   <?php if (!empty($programDetails['attributes']) && $_GET['domain'] == 'tracker' && $_GET['program_type'] == 'tracker'): ?>
                   <div class="preview-section">

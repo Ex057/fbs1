@@ -397,25 +397,76 @@ class DHIS2SubmissionHandler {
         ];
     }
 
-    private function prepareDatasetPayload(array $submissionData, array $dataValues, string $period): array {
-        // Convert period to DHIS2 format (YYYYMM for monthly, YYYY for yearly, etc.)
-        $dhis2Period = $this->convertToDHIS2Period($period);
-        
-        // For datasets, we need to structure data differently
-        $dataValueArray = [];
-        foreach ($dataValues as $dv) {
-            $dataValueArray[] = [
-                'dataElement' => $dv['dataElement'],
-                'value' => $dv['value'],
-                'orgUnit' => $submissionData['location_uid'],
-                'period' => $dhis2Period
-            ];
+private function prepareDatasetPayload(array $submissionData, array $dataValues, string $period): array {
+    // Convert period to DHIS2 format (YYYYMM for monthly, YYYY for yearly, etc.)
+    $dhis2Period = $this->convertToDHIS2Period($period);
+    
+    // For datasets, we need to structure data differently
+    $dataValueArray = [];
+    // Check if there's a category option combination response
+    $categoryOptionCombo = null;
+    foreach ($dataValues as $dv) {
+        // Check if this data element is mapped to a category combination
+        // This is a placeholder; actual logic might need to fetch from survey configuration or question mapping
+        // For now, we'll assume if a data element ID is 'category_combo', it's the category option combo
+        if ($dv['dataElement'] === 'category_combo') {
+            $categoryOptionCombo = $dv['value'];
+            continue; // Skip adding this to data values as it's not a regular data element
         }
-
-        return [
-            'dataValues' => $dataValueArray
+        $dataEntry = [
+            'dataElement' => $dv['dataElement'],
+            'value' => $dv['value'],
+            'orgUnit' => $submissionData['location_uid'],
+            'period' => $dhis2Period
         ];
+        if ($categoryOptionCombo) {
+            $dataEntry['categoryOptionCombo'] = $categoryOptionCombo;
+        }
+        $dataValueArray[] = $dataEntry;
     }
+
+    // If no category option combo was found in data values, try to fetch from survey configuration
+    if (!$categoryOptionCombo) {
+        $stmt = $this->conn->prepare("
+            SELECT qm.dhis2_option_set_id 
+            FROM survey s
+            JOIN survey_question sq ON s.id = sq.survey_id
+            JOIN question_dhis2_mapping qm ON sq.question_id = qm.question_id
+            WHERE s.id = ? AND qm.dhis2_dataelement_id = 'category_combo'
+            LIMIT 1
+        ");
+        $stmt->bind_param("i", $this->surveyId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($row = $result->fetch_assoc()) {
+            // Now try to get the category option combo from responses if available
+            $stmt = $this->conn->prepare("
+                SELECT sr.response_value
+                FROM submission_response sr
+                JOIN survey_question sq ON sr.question_id = sq.question_id
+                JOIN question_dhis2_mapping qm ON sq.question_id = qm.question_id
+                WHERE sr.submission_id = ? AND qm.dhis2_dataelement_id = 'category_combo'
+                LIMIT 1
+            ");
+            $submissionId = $submissionData['id'];
+            $stmt->bind_param("i", $submissionId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($row = $result->fetch_assoc()) {
+                $categoryOptionCombo = $this->getOptionCode($row['response_value'], $row['dhis2_option_set_id']);
+                if ($categoryOptionCombo) {
+                    foreach ($dataValueArray as &$entry) {
+                        $entry['categoryOptionCombo'] = $categoryOptionCombo;
+                    }
+                }
+            }
+        }
+    }
+
+    return [
+        'dataValues' => $dataValueArray
+    ];
+}
 
     private function generateTrackedEntityUID(array $submissionData): string {
         $uniqueFields = [
