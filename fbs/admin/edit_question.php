@@ -186,7 +186,12 @@ $optionSets = $pdo->query("
     <div class="main-content position-relative border-radius-lg ">
       <div class="container-fluid py-4">
         <?php include 'components/navbar.php'; ?>
-        <h1 class="mb-4">Edit Question</h1>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>Edit Question</h1>
+            <a href="manage_form.php" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Back
+            </a>
+        </div>
 
         <!-- Display success/error messages -->
         <?php if (isset($_SESSION['success_message'])): ?>

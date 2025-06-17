@@ -449,7 +449,7 @@ function downloadData(format) {
 
         // Go back to the list of surveys
         function goBack() {
-            window.location.href = 'records';
+            window.location.href = 'dashbard';
         }
 
         

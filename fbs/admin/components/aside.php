@@ -2,48 +2,49 @@
 $currentPage = basename($_SERVER['PHP_SELF']);
 $menuItems = [
     [
-        'title' => 'Dashboard',
+        'title' => 'Home Dashboard',
         'icon' => 'fa-tachometer-alt',
-        'link' => 'main.php', // Ensure correct link extension
-        'color' => 'primary',
+          'link' => 'main.php',
+        'color' => 'light', // Light stands out on dark blue
         'pages' => ['main.php']
     ],
     [
-        'title' => 'Manage Form',
-        'icon' => 'fa-wpforms',
-        'link' => 'manage_form.php', // Ensure correct link extension
-        'color' => 'info',
+        'title' => 'Form Management',
+        'icon' => 'fa-file-lines', // More form-like icon
+        'link' => 'manage_form.php',
+        'color' => 'success', // Green pops on blue
         'pages' => ['manage_form.php']
     ],
     [
-        'title' => 'Survey Dashboard',
-        'icon' => 'fa-chart-pie',
-        'link' => 'dashbard.php', // Ensure correct link extension
-        'color' => 'warning',
+        'title' => 'Survey Analytics',
+       'icon' => 'fa-chart-bar', // Clear analytics icon
+        'link' => 'dashbard.php',
+        'color' => 'warning', // Yellow/orange for analytics
         'pages' => ['dashbard.php']
     ],
     [
-        'title' => 'Submissions',
-        'icon' => 'fa-paper-plane',
-        'link' => 'records.php', // Ensure correct link extension
-        'color' => 'success',
+        'title' => 'Submission Records',
+           'icon' => 'fa-inbox', // Inbox for records
+        'link' => 'records.php',
+        'color' => 'info', // Cyan/teal for contrast
         'pages' => ['records.php']
     ],
     [
-        'title' => 'Survey',
-        'icon' => 'fa-poll',
-        'link' => 'survey.php', // Ensure correct link extension
-        'color' => 'danger',
+        'title' => 'Active Surveys',
+       'icon' => 'fa-list-check', // Checklist for surveys
+        'link' => 'survey.php',
+        'color' => 'danger', // Red for attention
         'pages' => ['survey.php']
     ],
     [
-        'title' => 'Settings',
-        'icon' => 'fa-cog',
-        'link' => 'settings.php', // Ensure correct link extension
-        'color' => 'secondary', // Changed to secondary for less visual conflict with 'danger'
-        'pages' => ['settings.php']
+    'title' => 'Admin Settings',
+    'icon' => 'fa-gear',
+    'link' => 'settings.php',
+    'color' => 'light', // Light for visibility
+    'pages' => ['settings.php']
     ]
-];
+    ]
+;
 ?>
 
 <aside class="sidenav navbar navbar-vertical navbar-expand-xs border-0 fixed-start custom-sidenav-bg" id="sidenav-main">

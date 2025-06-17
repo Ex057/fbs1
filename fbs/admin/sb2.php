@@ -7,346 +7,389 @@ if (!isset($_SESSION['admin_logged_in'])) {
     exit();
 }
 
-require 'connect.php';
-require 'dhis2/dhis2_shared.php';
-require 'dhis2/dhis2_get_function.php';
+require 'connect.php'; // Ensure this connects to your database
+require 'dhis2/dhis2_shared.php'; // Ensure this provides getDhis2Config() and dhis2_get()
+require 'dhis2/dhis2_get_function.php'; // Ensure this has necessary DHIS2 API call functions
 
-// Handle form submission for creating survey
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_survey'])) {
+$success_message = null;
+$error_message = null;
+
+// Handle form submission for creating survey (both local and DHIS2)
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $conn = new PDO("mysql:host=localhost;dbname=fbtv3;charset=utf8", "root", "root");
-        // Begin transaction
+        $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION); // Set error mode for PDO
         $conn->beginTransaction();
-        
-        // Check if survey already exists by program_dataset (UID) first
-        $stmt = $conn->prepare("SELECT id FROM survey WHERE program_dataset = ?");
-        $stmt->execute([$_POST['program_id']]);
-        $existingSurvey = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if ($existingSurvey) {
-            $conn->rollBack();
-            $error_message = "A survey for this program/dataset (UID) already exists.";
-            goto end_processing;
-        }
+        if (isset($_POST['create_local_survey'])) {
+            // Logic for Local Survey Creation (NO CHANGE)
+            $surveyName = trim($_POST['local_survey_name']);
+            if (empty($surveyName)) {
+                throw new Exception("Survey name cannot be empty.");
+            }
 
-        // If not found by UID, check by name
-        $stmt = $conn->prepare("SELECT id FROM survey WHERE name = ?");
-        $stmt->execute([$_POST['program_name']]);
-        $existingSurvey = $stmt->fetch(PDO::FETCH_ASSOC);
+            // Check for duplicate survey name
+            $stmt = $conn->prepare("SELECT id FROM survey WHERE name = ?");
+            $stmt->execute([$surveyName]);
+            if ($stmt->fetch()) {
+                throw new Exception("A survey with the name '" . htmlspecialchars($surveyName) . "' already exists.");
+            }
 
-        if ($existingSurvey) {
-            $conn->rollBack();
-            $error_message = "A survey with name '".htmlspecialchars($_POST['program_name'])."' already exists.";
-            goto end_processing;
-        }
-        
-        // 1. Create survey entry (handles both local and dhis2)
-        if (isset($_POST['dhis2_instance']) && isset($_POST['program_id'])) {
-            // DHIS2 survey
+            // Insert survey
+            $startDate = !empty($_POST['start_date']) ? $_POST['start_date'] : date('Y-m-d');
+            $endDate = !empty($_POST['end_date']) ? $_POST['end_date'] : date('Y-m-d', strtotime($startDate . ' +6 months'));
+            $isActive = isset($_POST['is_active']) ? 1 : 0;
+
+            $stmt = $conn->prepare("INSERT INTO survey (name, type, start_date, end_date, is_active) VALUES (?, 'local', ?, ?, ?)");
+            $stmt->execute([$surveyName, $startDate, $endDate, $isActive]);
+            $surveyId = $conn->lastInsertId();
+            $position = 1;
+
+            // Attach existing questions
+            if (!empty($_POST['attach_questions']) && is_array($_POST['attach_questions'])) {
+                foreach ($_POST['attach_questions'] as $qid) {
+                    $stmt = $conn->prepare("INSERT INTO survey_question (survey_id, question_id, position) VALUES (?, ?, ?)");
+                    $stmt->execute([$surveyId, $qid, $position++]);
+                }
+            }
+
+            // Insert new questions (skip empty labels)
+            if (!empty($_POST['questions']) && is_array($_POST['questions'])) {
+                foreach ($_POST['questions'] as $q) {
+                    $qLabel = trim($q['label']);
+                    if (!empty($qLabel)) {
+                        $stmt = $conn->prepare("INSERT INTO question (label, question_type, is_required) VALUES (?, ?, 1)");
+                        $stmt->execute([$qLabel, $q['type']]);
+                        $questionId = $conn->lastInsertId();
+                        $stmt = $conn->prepare("INSERT INTO survey_question (survey_id, question_id, position) VALUES (?, ?, ?)");
+                        $stmt->execute([$surveyId, $questionId, $position++]);
+                    }
+                }
+            }
+
+            $conn->commit();
+            $success_message = "Local survey successfully created.";
+
+        } elseif (isset($_POST['create_survey'])) {
+            // Logic for DHIS2 Survey Creation (MODIFIED for no dhis2_id in DB)
+            $dhis2Instance = $_POST['dhis2_instance'];
+            $programId = $_POST['program_id'];
+            $programName = $_POST['program_name'];
+            $domain = $_POST['domain']; // Get the domain
+            $programType = $_POST['program_type'] ?? null; // Get program_type for tracker/event
+
+            // Check if survey already exists by program_dataset (UID) first
+            $stmt = $conn->prepare("SELECT id FROM survey WHERE program_dataset = ?");
+            $stmt->execute([$programId]);
+            $existingSurvey = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($existingSurvey) {
+                throw new Exception("A survey for this program/dataset (UID) already exists.");
+            }
+
+            // If not found by UID, check by name
+            $stmt = $conn->prepare("SELECT id FROM survey WHERE name = ?");
+            $stmt->execute([$programName]);
+            $existingSurvey = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($existingSurvey) {
+                throw new Exception("A survey with name '" . htmlspecialchars($programName) . "' already exists.");
+            }
+
+            // 1. Create survey entry
             $stmt = $conn->prepare("INSERT INTO survey (name, type, dhis2_instance, program_dataset) VALUES (?, 'dhis2', ?, ?)");
-            $stmt->execute([$_POST['program_name'], $_POST['dhis2_instance'], $_POST['program_id']]);
-        } else {
-            // Local survey with default instance and program_dataset
-            $stmt = $conn->prepare("INSERT INTO survey (name, type, dhis2_instance, program_dataset) VALUES (?, 'local', ?, ?)");
-            $stmt->execute([
-              $_POST['local_survey_name'] ?? '', // fallback if not set
-              'UiO',
-              'GfDOw2s4mCj'
-            ]);
-        }
-        $surveyId = $conn->lastInsertId();
-        
-        // 2. Process data elements and create questions
-        $dataElements = json_decode($_POST['data_elements'], true);
-        $categoryCombos = json_decode($_POST['category_combos'] ?? '[]', true); // New: Decode category combinations
-        $position = 1;
-        
-        $processQuestion = function($element, $elementId, $surveyId, &$position, $conn, $isCategoryComboQuestion = false, $dhis2CategoryComboId = null) {
-            // Determine question type based on option set
-            $questionType = !empty($element['optionSet']) ? 'select' : 'text';
-            
-            // Create question
-            $stmt = $conn->prepare("INSERT INTO question (label, question_type, is_required) VALUES (?, ?, 1)");
-            $stmt->execute([$element['name'], $questionType]);
-            $questionId = $conn->lastInsertId();
-            
-            // Add question to survey
-            $stmt = $conn->prepare("INSERT INTO survey_question (survey_id, question_id, position) VALUES (?, ?, ?)");
-            $stmt->execute([$surveyId, $questionId, $position]);
-            $position++;
-            
-            // Map question to DHIS2 element (if not a category combo question)
-            // IMPORTANT: Without DB modification, we cannot store dhis2_category_combo_id directly.
-            // dhis2_dataelement_id will be NULL for category combo questions here.
-            if (!$isCategoryComboQuestion) {
-                $stmt = $conn->prepare("INSERT INTO question_dhis2_mapping (question_id, dhis2_dataelement_id, dhis2_option_set_id) VALUES (?, ?, ?)");
-                $stmt->execute([
-                    $questionId, 
-                    $elementId, 
-                    !empty($element['optionSet']) ? $element['optionSet']['id'] : null
-                ]);
-            } else {
-                // For category combo questions, map to dataelement_id as NULL, and option_set_id if applicable.
-                // The actual category combo ID is NOT stored here without DB changes.
-                $stmt = $conn->prepare("INSERT INTO question_dhis2_mapping (question_id, dhis2_dataelement_id, dhis2_option_set_id) VALUES (?, ?, ?)");
-                $stmt->execute([
-                    $questionId, 
-                    null, // No data element ID for category combo questions
-                    !empty($element['optionSet']) ? $element['optionSet']['id'] : null
-                ]);
-            }
-            
-            // Process option sets if exists
-            if (!empty($element['optionSet']) && !empty($element['options'])) {
-                // Check if option set already exists by name
-                $stmt = $conn->prepare("SELECT id FROM option_set WHERE name = ?");
-                $stmt->execute([$element['optionSet']['name']]);
-                $existingOptionSet = $stmt->fetch(PDO::FETCH_ASSOC);
+            $stmt->execute([$programName, $dhis2Instance, $programId]);
+            $surveyId = $conn->lastInsertId();
 
-                if ($existingOptionSet) {
-                    // Use existing option set
-                    $optionSetId = $existingOptionSet['id'];
-                } else {
-                    // Create new option set
-                    $stmt = $conn->prepare("INSERT INTO option_set (name) VALUES (?)");
-                    $stmt->execute([$element['optionSet']['name']]);
-                    $optionSetId = $conn->lastInsertId();
+            // Decode all data passed from the frontend
+            $dataElements = json_decode($_POST['data_elements'], true) ?? [];
+            $attributes = json_decode($_POST['attributes'], true) ?? [];
+            $optionSets = json_decode($_POST['option_sets'], true) ?? []; // All option sets, including synthetic COC ones
 
-                    // Add option values
-                    foreach ($element['options'] as $option) {
-                        // Check if this exact option value already exists in this option set
-                        $stmt = $conn->prepare("SELECT id FROM option_set_values 
-                                              WHERE option_set_id = ? AND option_value = ?");
-                        $stmt->execute([$optionSetId, $option['name']]);
-                        $existingOptionValue = $stmt->fetch(PDO::FETCH_ASSOC);
+            $position = 1;
 
-                        if (!$existingOptionValue) {
-                            // Check if the option value exists in ANY option set
-                            $stmt = $conn->prepare("SELECT option_value FROM option_set_values 
-                                                  WHERE option_value = ? LIMIT 1");
-                            $stmt->execute([$option['name']]);
-                            $valueExists = $stmt->fetch();
 
-                            if ($valueExists) {
-                                // Option value exists elsewhere - just create new reference
-                                $stmt = $conn->prepare("INSERT INTO option_set_values 
-                                                      (option_set_id, option_value) 
-                                                      VALUES (?, ?)");
+            /**
+             * Helper function to process DHIS2 elements (Data Elements, Attributes).
+             * This function will handle Category Combinations for Data Elements,
+             * especially for Aggregate domain.
+             *
+             * @param array $element The DHIS2 element data (Data Element or Attribute).
+             * @param int $surveyId The ID of the local survey.
+             * @param int &$position The current question position, passed by reference.
+             * @param PDO $conn The database connection object.
+             * @param array $allOptionSets All option sets fetched from DHIS2, including synthetic ones.
+             * @param string $domain The domain ('tracker' or 'aggregate').
+             */
+            $processDhis2Element = function ($element, $surveyId, &$position, $conn, $allOptionSets, $domain) {
+                $questionLabel = trim($element['name']);
+                if (empty($questionLabel)) {
+                    return; // Skip if label is empty
+                }
+
+                $questionType = 'text'; // Default to text
+                $optionSetId = null; // Local option_set.id
+                $dhis2LinkedOptionSetId = null; // Original DHIS2 option set ID (if applicable)
+                $dhis2LinkedOptionSetName = null; // Original DHIS2 option set Name (for local lookup)
+
+                // Determine question type and linked option set
+                // Priority: Aggregate DE with Category Combo -> Regular Option Set -> Text
+                if ($domain === 'aggregate' && !empty($element['categoryCombo']['id'])) {
+                    $categoryComboId = $element['categoryCombo']['id'];
+                    $syntheticOptionSetId = 'dhis2_cc_' . $categoryComboId . '_coc_optset';
+
+                    if (isset($allOptionSets[$syntheticOptionSetId])) {
+                        $dhis2CategoryComboOptionSet = $allOptionSets[$syntheticOptionSetId];
+                        $questionType = 'select'; // If it has a synthetic option set, it's a select type
+                        $dhis2LinkedOptionSetId = $syntheticOptionSetId; // Link to this synthetic ID
+                        $dhis2LinkedOptionSetName = $dhis2CategoryComboOptionSet['name']; // Use name for local lookup
+                    }
+                } elseif (!empty($element['optionSet'])) { // Regular DHIS2 Option Set
+                    $dhis2LinkedOptionSetId = $element['optionSet']['id']; // Original DHIS2 OptionSet UID
+                    $dhis2LinkedOptionSetName = $element['optionSet']['name']; // Original DHIS2 OptionSet Name
+                    $questionType = 'select';
+                }
+
+                // Process the determined DHIS2 linked option set (synthetic or regular)
+                if (!empty($dhis2LinkedOptionSetName) && isset($allOptionSets[$dhis2LinkedOptionSetId])) {
+                    $dhis2OptionSetToProcess = $allOptionSets[$dhis2LinkedOptionSetId];
+
+                    // Check if option set already exists locally by its NAME (since dhis2_id is not allowed)
+                    $stmt = $conn->prepare("SELECT id FROM option_set WHERE name = ?");
+                    $stmt->execute([$dhis2OptionSetToProcess['name']]);
+                    $existingOptionSet = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                    if ($existingOptionSet) {
+                        $optionSetId = $existingOptionSet['id'];
+                    } else {
+                        // Create new local option set (WITHOUT dhis2_id column)
+                        $stmt = $conn->prepare("INSERT INTO option_set (name) VALUES (?)");
+                        $stmt->execute([$dhis2OptionSetToProcess['name']]);
+                        $optionSetId = $conn->lastInsertId();
+
+                        // Add option values to the new local option set
+                        if (!empty($dhis2OptionSetToProcess['options'])) {
+                            foreach ($dhis2OptionSetToProcess['options'] as $option) {
+                                $stmt = $conn->prepare("INSERT INTO option_set_values (option_set_id, option_value) VALUES (?, ?)");
                                 $stmt->execute([$optionSetId, $option['name']]);
-                            } else {
-                                // Completely new option value
-                                $stmt = $conn->prepare("INSERT INTO option_set_values 
-                                                      (option_set_id, option_value) 
-                                                      VALUES (?, ?)");
-                                $stmt->execute([$optionSetId, $option['name']]);
-                            }
-                        }
-                        
-                        // Map option to DHIS2 if code exists
-                        if (!empty($option['code'])) {
-                            // Check if mapping exists
-                            $stmt = $conn->prepare("SELECT id FROM dhis2_option_set_mapping 
-                                                  WHERE local_value = ? 
-                                                  AND dhis2_option_code = ? 
-                                                  AND dhis2_option_set_id = ?");
-                            $stmt->execute([
-                                $option['name'], 
-                                $option['code'], 
-                                $element['optionSet']['id']
-                            ]);
-                            
-                            if (!$stmt->fetch()) {
-                                try {
-                                    $stmt = $conn->prepare("INSERT INTO dhis2_option_set_mapping 
-                                                          (local_value, dhis2_option_code, dhis2_option_set_id) 
-                                                          VALUES (?, ?, ?)");
-                                    $stmt->execute([
-                                        $option['name'], 
-                                        $option['code'], 
-                                        $element['optionSet']['id']
-                                    ]);
-                                } catch (PDOException $e) {
-                                    if ($e->errorInfo[1] != 1062) { // Ignore duplicate entry errors
-                                        throw $e;
-                                    }
-                                }
+                                // Without dhis2_id for options, mapping back will be hard
                             }
                         }
                     }
                 }
 
-                // Update question with option set id
-                $stmt = $conn->prepare("UPDATE question SET option_set_id = ? WHERE id = ?");
-                $stmt->execute([$optionSetId, $questionId]);
-            }
-        };
+                // Insert into question table
+                $stmt = $conn->prepare("INSERT INTO question (label, question_type, is_required, option_set_id) VALUES (?, ?, 1, ?)");
+                $stmt->execute([$questionLabel, $questionType, $optionSetId]);
+                $questionId = $conn->lastInsertId();
 
-        // New: Process Category Combinations first for Aggregate programs
-        // These questions will appear at the top of the survey.
-        if (!empty($categoryCombos) && $_POST['domain'] === 'aggregate') {
-            foreach ($categoryCombos as $ccId => $categoryCombo) {
-                if (!empty($categoryCombo['categories'])) {
-                    foreach ($categoryCombo['categories'] as $category) {
-                        // Create a question for each category
-                        $questionLabel = $categoryCombo['name'] . ' - ' . $category['name']; // Example label
-                        $questionType = 'select'; // Category options will be select
-                        
-                        // Structure similar to data element for processQuestion, but provide category options as 'options'
-                        $tempElement = [
-                            'name' => $questionLabel,
-                            'optionSet' => [
-                                'id' => $category['id'], // Use category ID as optionSet ID for unique identification
-                                'name' => $category['name'] . ' Options'
-                            ],
-                            'options' => $category['categoryOptions'] ?? [] // Category options become the choices
-                        ];
-                        
-                        // Call processQuestion, indicating it's a category combo question
-                        // elementId is effectively the category ID here for tracking, though not mapped to DHIS2_dataelement_id
-                        $processQuestion($tempElement, $category['id'], $surveyId, $position, $conn, true, $ccId); 
-                    }
+                // Add question to survey
+                $stmt = $conn->prepare("INSERT INTO survey_question (survey_id, question_id, position) VALUES (?, ?, ?)");
+                $stmt->execute([$surveyId, $questionId, $position]);
+                $position++;
+
+                // Insert into question_dhis2_mapping
+                // ASSUMPTION: Your `question_dhis2_mapping` table has AT LEAST `question_id`, `dhis2_dataelement_id`, `dhis2_option_set_id`.
+                // If you cannot add `dhis2_attribute_id`, `dhis2_category_combo_id`, `dhis2_entity_type`,
+                // then we must simplify the INSERT statement here.
+                // For now, I'll remove the columns that are most likely missing if you haven't altered the DB.
+                // This means you lose the ability to easily differentiate data elements, attributes, and category combos
+                // in your mapping table based on their DHIS2 UIDs, relying only on what can be mapped to a 'dataelement_id'.
+
+                $dhis2DataElementIdForMapping = null;
+                // If it's a data element or attribute, map its primary DHIS2 ID to dhis2_dataelement_id.
+                // This is a forced fit due to schema constraints.
+                if (isset($element['dhis2_type']) && ($element['dhis2_type'] === 'dataElement' || $element['dhis2_type'] === 'attribute')) {
+                    $dhis2DataElementIdForMapping = $element['dhis2_id'];
+                }
+                // dhis2_option_set_id in mapping will now be the DHIS2 UID of the *linked* option set (synthetic or real)
+                // This allows you to at least know which DHIS2 option set provided the values.
+
+                $stmt = $conn->prepare("INSERT INTO question_dhis2_mapping (question_id, dhis2_dataelement_id, dhis2_option_set_id) VALUES (?, ?, ?)");
+                $stmt->execute([
+                    $questionId,
+                    $dhis2DataElementIdForMapping,
+                    $dhis2LinkedOptionSetId // Store the DHIS2 UID (synthetic or real) here
+                ]);
+                // WARNING: Without dhis2_attribute_id, dhis2_category_combo_id, and dhis2_entity_type columns,
+                // you will struggle to differentiate between data elements, attributes, and category combos
+                // when processing data or exporting it back to DHIS2.
+            };
+
+            // Order of processing:
+            // Process Data Elements (including aggregate DEs whose options are COCs)
+            foreach ($dataElements as $deId => $element) {
+                $processDhis2Element($element, $surveyId, $position, $conn, $optionSets, $domain);
+            }
+
+            // Process Tracked Entity Attributes (for Tracker Programs ONLY)
+            if ($domain === 'tracker' && $programType === 'tracker') {
+                foreach ($attributes as $attrId => $attr) {
+                    $processDhis2Element($attr, $surveyId, $position, $conn, $optionSets, $domain);
                 }
             }
-        }
-        
-        // Process data elements
-        foreach ($dataElements as $deId => $element) {
-            $processQuestion($element, $deId, $surveyId, $position, $conn);
-        }
-        
-        // Process attributes if tracker program (now as questions)
-        if (isset($_POST['attributes']) && !empty($_POST['attributes'])) {
-            $attributes = json_decode($_POST['attributes'], true);
-            
-            foreach ($attributes as $attrId => $attr) {
-                $processQuestion($attr, $attrId, $surveyId, $position, $conn);
-            }
-        }
-        
-        $conn->commit();
-        $success_message = "Survey successfully created from DHIS2 program";
+
+            $conn->commit();
+            $success_message = "Survey successfully created from DHIS2 program.";
+
+        } // End of DHIS2 survey creation logic
+
     } catch (Exception $e) {
-        $conn->rollBack();
+        if ($conn && $conn->inTransaction()) {
+            $conn->rollBack();
+        }
         $error_message = "Error creating survey: " . $e->getMessage();
     }
 }
 
-end_processing:
 
 /**
  * Get all active DHIS2 instances using getDhis2Config from dhis2_shared.php.
  * Returns an array of instance configs keyed by their 'key'.
  */
 function getLocalDHIS2Config() {
-  // Use the shared function to fetch all active instances from the DB
-  $instances = [];
-  $dbHost = 'localhost';
-  $dbUser = 'root';
-  $dbPass = 'root';
-  $dbName = 'fbtv3';
+    // Use the shared function to fetch all active instances from the DB
+    $instances = [];
+    $dbHost = 'localhost'; // Ensure this matches your actual DB host
+    $dbUser = 'root'; // Ensure this matches your actual DB user
+    $dbPass = 'root'; // Ensure this matches your actual DB password
+    $dbName = 'fbtv3'; // Ensure this matches your actual DB name
 
-  $mysqli = new mysqli($dbHost, $dbUser, $dbPass, $dbName);
-  if ($mysqli->connect_errno) {
-    throw new Exception("Database connection failed: " . $mysqli->connect_error);
-  }
-
-  $result = $mysqli->query("SELECT `key` FROM dhis2_instances WHERE status = 1");
-  while ($row = $result->fetch_assoc()) {
-    $config = getDhis2Config($row['key']);
-    if ($config) {
-      $instances[$row['key']] = $config;
+    $mysqli = new mysqli($dbHost, $dbUser, $dbPass, $dbName);
+    if ($mysqli->connect_errno) {
+        throw new Exception("Database connection failed: " . $mysqli->connect_error);
     }
-  }
-  $result->free();
-  $mysqli->close();
 
-  return $instances;
+    $result = $mysqli->query("SELECT `key` FROM dhis2_instances WHERE status = 1");
+    if ($result) {
+        while ($row = $result->fetch_assoc()) {
+            $config = getDhis2Config($row['key']); // Assuming getDhis2Config is accessible
+            if ($config) {
+                $instances[$row['key']] = $config;
+            }
+        }
+        $result->free();
+    } else {
+        throw new Exception("Failed to query DHIS2 instances: " . $mysqli->error);
+    }
+    $mysqli->close();
+
+    return $instances;
 }
 
-function getTrackerPrograms($instance) {
-    $programs = dhis2_get('/api/programs?fields=id,name', $instance);
+/**
+ * Fetches programs from DHIS2 based on program type.
+ * 'event' will fetch event programs.
+ * 'tracker' will fetch tracker programs.
+ * If no type is specified, it fetches all.
+ */
+function getPrograms($instance, $programType = null) {
+    $filter = '';
+    if ($programType === 'event') {
+        $filter = '&filter=programType:eq:WITHOUT_REGISTRATION';
+    } elseif ($programType === 'tracker') {
+        $filter = '&filter=programType:eq:WITH_REGISTRATION';
+    }
+    $programs = dhis2_get('/api/programs?fields=id,name,programType' . $filter, $instance);
     return $programs['programs'] ?? [];
 }
 
 function getDatasets($instance) {
+    // dhis2_get is assumed to be defined in dhis2_shared.php or dhis2_get_function.php
     $datasets = dhis2_get('/api/dataSets?fields=id,name', $instance);
     return $datasets['dataSets'] ?? [];
 }
 
-function getProgramDetails($instance, $domain, $programId) {
+/**
+ * Get details for a specific DHIS2 program or dataset, including data elements and attributes.
+ * This version integrates Category Combinations/COCs for aggregate data elements as their option sets,
+ * and passes Category Combo info for event data elements without creating new questions.
+ *
+ * @param string $instance The DHIS2 instance key.
+ * @param string $domain 'tracker' or 'aggregate'.
+ * @param string $programId The ID of the program or dataset.
+ * @param string|null $programType 'event' or 'tracker' if domain is 'tracker'.
+ * @return array Structured array with program details, data elements, attributes, and option sets.
+ * @throws Exception If API call fails or response is invalid.
+ */
+function getProgramDetails($instance, $domain, $programId, $programType = null) {
     $result = [
         'program' => null,
         'dataElements' => [],
         'attributes' => [],
-        'optionSets' => [],
-        'categoryCombos' => [] // New: To store category combo details
+        'optionSets' => [] // Will contain both regular and synthetic COC option sets
     ];
-    
+
     if ($domain === 'tracker') {
-        // Get program details
-        // Added categoryCombo to dataElement field for tracker programs as well
-        $programInfo = dhis2_get('/api/programs/'.$programId.'?fields=id,name,programStages[id,name,programStageDataElements[dataElement[id,name,optionSet[id,name],categoryCombo[id,name]]]],programTrackedEntityAttributes[trackedEntityAttribute[id,name,optionSet[id,name]]]', $instance);
-        $result['program'] = [
-            'id' => $programInfo['id'],
-            'name' => $programInfo['name']
-        ];
-        
-        // Get data elements
-        if (!empty($programInfo['programStages'])) {
-            foreach ($programInfo['programStages'] as $stage) {
-                if (isset($stage['programStageDataElements'])) {
-                    foreach ($stage['programStageDataElements'] as $psde) {
-                        $de = $psde['dataElement'];
-                        $result['dataElements'][$de['id']] = [
-                            'name' => $de['name'],
-                            'optionSet' => $de['optionSet'] ?? null,
-                            'categoryCombo' => $de['categoryCombo'] ?? null // Added categoryCombo for DEs in tracker
-                        ];
-                        
-                        // Check for option set
-                        if (!empty($de['optionSet'])) {
-                            $result['optionSets'][$de['optionSet']['id']] = $de['optionSet'];
-                        }
-                         // Check for category combo and fetch its details if present on data element
-                        if (!empty($de['categoryCombo'])) {
-                            $ccId = $de['categoryCombo']['id'];
-                            if (!isset($result['categoryCombos'][$ccId])) {
-                                $categoryComboDetails = dhis2_get('/api/categoryCombos/'.$ccId.'?fields=id,name,categories[id,name,categoryOptions[id,name]]', $instance);
-                                $result['categoryCombos'][$ccId] = $categoryComboDetails;
+        if ($programType === 'tracker') { // WITH_REGISTRATION program (Tracker Program)
+            // Existing logic: Fetch program details and tracked entity attributes only.
+            // No changes here, as category combos are typically not relevant for TEAs in this context.
+            $programInfo = dhis2_get('/api/programs/' . $programId . '?fields=id,name,programType,programTrackedEntityAttributes[trackedEntityAttribute[id,name,optionSet[id,name]]]', $instance);
+
+            $result['program'] = [
+                'id' => $programInfo['id'],
+                'name' => $programInfo['name'],
+                'programType' => $programInfo['programType']
+            ];
+
+            // Get program attributes (tracker-level data) - NO CHANGE in structure here
+            if (!empty($programInfo['programTrackedEntityAttributes'])) {
+                foreach ($programInfo['programTrackedEntityAttributes'] as $attr) {
+                    $tea = $attr['trackedEntityAttribute'];
+                    $result['attributes'][$tea['id']] = [
+                        'name' => $tea['name'],
+                        'optionSet' => $tea['optionSet'] ?? null,
+                        'dhis2_id' => $tea['id'], // Store DHIS2 ID
+                        'dhis2_type' => 'attribute'
+                    ];
+                    if (!empty($tea['optionSet'])) {
+                        $result['optionSets'][$tea['optionSet']['id']] = $tea['optionSet'];
+                    }
+                }
+            }
+
+        } elseif ($programType === 'event') { // WITHOUT_REGISTRATION program (Event Program)
+            // MODIFIED: Fetch program details for event program, including categoryCombo for data elements
+            $programInfo = dhis2_get('/api/programs/' . $programId . '?fields=id,name,programType,programStages[id,name,programStageDataElements[dataElement[id,name,optionSet[id,name],categoryCombo[id,name]]]]', $instance);
+
+            $result['program'] = [
+                'id' => $programInfo['id'],
+                'name' => $programInfo['name'],
+                'programType' => $programInfo['programType']
+            ];
+
+            // Get data elements from program stages
+            if (!empty($programInfo['programStages'])) {
+                foreach ($programInfo['programStages'] as $stage) {
+                    if (isset($stage['programStageDataElements'])) {
+                        foreach ($stage['programStageDataElements'] as $psde) {
+                            $de = $psde['dataElement'];
+                            $result['dataElements'][$de['id']] = [
+                                'name' => $de['name'],
+                                'optionSet' => $de['optionSet'] ?? null,
+                                'categoryCombo' => $de['categoryCombo'] ?? null, // Capture categoryCombo
+                                'dhis2_id' => $de['id'],
+                                'dhis2_type' => 'dataElement'
+                            ];
+                            // Add original option set if it exists
+                            if (!empty($de['optionSet'])) {
+                                $result['optionSets'][$de['optionSet']['id']] = $de['optionSet'];
                             }
                         }
                     }
                 }
             }
+        } else {
+            throw new Exception("Invalid program type for tracker domain.");
         }
-        
-        // Get program attributes
-        // NOTE: CategoryCombo for TEAs is not fetched here. If needed, modify fields query for trackedEntityAttribute.
-        $programAttrs = $programInfo; // Already fetched programInfo includes programTrackedEntityAttributes
-        if (!empty($programAttrs['programTrackedEntityAttributes'])) {
-            foreach ($programAttrs['programTrackedEntityAttributes'] as $attr) {
-                $tea = $attr['trackedEntityAttribute'];
-                $result['attributes'][$tea['id']] = [
-                    'name' => $tea['name'],
-                    'optionSet' => $tea['optionSet'] ?? null
-                    // If you want category combos for TEAs, add 'categoryCombo' field here
-                ];
-                
-                // Check for option set
-                if (!empty($tea['optionSet'])) {
-                    $result['optionSets'][$tea['optionSet']['id']] = $tea['optionSet'];
-                }
-            }
-        }
-    } elseif ($domain === 'aggregate') {
-        // Get dataset details
-        // Include categoryCombo for data elements
-        $datasetInfo = dhis2_get('/api/dataSets/'.$programId.'?fields=id,name,dataSetElements[dataElement[id,name,optionSet[id,name],categoryCombo[id,name]]]', $instance);
+    } elseif ($domain === 'aggregate') { // Aggregate Program (Dataset)
+        // MODIFIED: Get dataset details, including categoryCombo for data elements
+        $datasetInfo = dhis2_get('/api/dataSets/' . $programId . '?fields=id,name,dataSetElements[dataElement[id,name,optionSet[id,name],categoryCombo[id,name]]]', $instance);
         $result['program'] = [
             'id' => $datasetInfo['id'],
             'name' => $datasetInfo['name']
         ];
-        
+
         // Get data elements
         if (!empty($datasetInfo['dataSetElements'])) {
             foreach ($datasetInfo['dataSetElements'] as $dse) {
@@ -354,50 +397,333 @@ function getProgramDetails($instance, $domain, $programId) {
                 $result['dataElements'][$de['id']] = [
                     'name' => $de['name'],
                     'optionSet' => $de['optionSet'] ?? null,
-                    'categoryCombo' => $de['categoryCombo'] ?? null // New: store categoryCombo
+                    'categoryCombo' => $de['categoryCombo'] ?? null, // Capture categoryCombo
+                    'dhis2_id' => $de['id'],
+                    'dhis2_type' => 'dataElement'
                 ];
-                
-                // Check for option set
+                // Add original option set if it exists
                 if (!empty($de['optionSet'])) {
                     $result['optionSets'][$de['optionSet']['id']] = $de['optionSet'];
                 }
+            }
+        }
+    }
 
-                // New: Check for category combo and fetch its details
-                // We collect all unique category combos found across data elements
-                if (!empty($de['categoryCombo'])) {
-                    $ccId = $de['categoryCombo']['id'];
-                    // Fetch category combo details only if not already fetched
-                    if (!isset($result['categoryCombos'][$ccId])) {
-                        $categoryComboDetails = dhis2_get('/api/categoryCombos/'.$ccId.'?fields=id,name,categories[id,name,categoryOptions[id,name]]', $instance);
-                        $result['categoryCombos'][$ccId] = $categoryComboDetails;
-                    }
+    // --- LOGIC FOR HANDLING DHIS2 CATEGORY COMBINATIONS ---
+    // This will generate "synthetic" option sets for category combinations
+    // These will be used for aggregate data elements to define their options.
+    // For event data elements, it just provides full details without altering their options.
+
+    $processedCategoryCombos = []; // To avoid redundant API calls for shared category combos
+
+    // Iterate through data elements to find those with category combos
+    foreach ($result['dataElements'] as $deId => &$element) {
+        if (!empty($element['categoryCombo']['id'])) {
+            $categoryComboId = $element['categoryCombo']['id'];
+            $categoryComboName = $element['categoryCombo']['name'];
+
+            // Only fetch category combo details if not already processed
+            if (!isset($processedCategoryCombos[$categoryComboId])) {
+                // Fetch details of the category combination including its categoryOptionCombos
+                $categoryComboFullDetails = dhis2_get('/api/categoryCombos/' . $categoryComboId . '?fields=id,name,categoryOptionCombos[id,name,code]', $instance);
+                $processedCategoryCombos[$categoryComboId] = $categoryComboFullDetails;
+            } else {
+                $categoryComboFullDetails = $processedCategoryCombos[$categoryComboId];
+            }
+
+
+            if (!empty($categoryComboFullDetails['categoryOptionCombos'])) {
+                $syntheticOptionSetId = 'dhis2_cc_' . $categoryComboId . '_coc_optset'; // Unique ID for COC option set
+
+                // Create the synthetic option set structure for Category Option Combinations (COCs)
+                $syntheticOptionSet = [
+                    'id' => $syntheticOptionSetId,
+                    'name' => $categoryComboName . ' Combinations', // e.g., "Gender by Age Group Combinations"
+                    'options' => $categoryComboFullDetails['categoryOptionCombos']
+                ];
+
+                // Add this synthetic option set to the main optionSets collection
+                $result['optionSets'][$syntheticOptionSetId] = $syntheticOptionSet;
+
+                // For AGGREGATE data elements:
+                // Overwrite their existing optionSet with this synthetic one (Category Combo as Option Set)
+                if ($domain === 'aggregate') {
+                    $element['optionSet'] = [
+                        'id' => $syntheticOptionSetId,
+                        'name' => $syntheticOptionSet['name']
+                    ];
+                    // Also clear any original options linked, as they are superseded by COCs
+                    unset($element['options']);
                 }
+                // For EVENT data elements:
+                // Keep their original 'optionSet' (if any)
+                // The full category combo details are available in $element['categoryCombo']
+                // for display or later export mapping, but they do NOT become the question's options.
             }
         }
     }
-    
-    // Fetch option values for all option sets (existing logic)
+
+    // --- END CATEGORY COMBINATION LOGIC ---
+
+    // Fetch actual option values for all *standard* option sets (if they haven't been fetched yet)
+    // Synthetic ones already have their 'options' populated above.
     foreach ($result['optionSets'] as $optionSetId => &$optionSet) {
-        $optionSetDetails = dhis2_get('/api/optionSets/'.$optionSetId.'?fields=id,name,options[id,name,code]', $instance);
-        if (!empty($optionSetDetails['options'])) {
-            $optionSet['options'] = $optionSetDetails['options'];
-            
-            // Add options to data elements and attributes
-            foreach ($result['dataElements'] as $deId => &$de) {
-                if (!empty($de['optionSet']) && $de['optionSet']['id'] === $optionSetId) {
-                    $de['options'] = $optionSetDetails['options'];
-                }
-            }
-            
-            foreach ($result['attributes'] as $attrId => &$attr) {
-                if (!empty($attr['optionSet']) && $attr['optionSet']['id'] === $optionSetId) {
-                    $attr['options'] = $optionSetDetails['options'];
-                }
+        // Only fetch if not already populated (synthetic) and not a synthetic ID
+        if (!isset($optionSet['options']) && !str_starts_with($optionSetId, 'dhis2_cc_')) {
+            $optionSetDetails = dhis2_get('/api/optionSets/' . $optionSetId . '?fields=id,name,options[id,name,code]', $instance);
+            if (!empty($optionSetDetails['options'])) {
+                $optionSet['options'] = $optionSetDetails['options'];
             }
         }
     }
-    
+
+    // Link options back to relevant data elements and attributes (ensure all elements have options if available)
+    foreach ($result['dataElements'] as $deId => &$de) {
+        if (!empty($de['optionSet']) && isset($result['optionSets'][$de['optionSet']['id']])) {
+            $de['options'] = $result['optionSets'][$de['optionSet']['id']]['options'] ?? [];
+        }
+    }
+    foreach ($result['attributes'] as $attrId => &$attr) {
+        if (!empty($attr['optionSet']) && isset($result['optionSets'][$attr['optionSet']['id']])) {
+            $attr['options'] = $result['optionSets'][$attr['optionSet']['id']]['options'] ?? [];
+        }
+    }
+
     return $result;
+}
+
+// Check if this is an AJAX request for DHIS2 form content
+if (isset($_GET['ajax']) && $_GET['ajax'] == 1 && $_GET['survey_source'] == 'dhis2') {
+    // Clear any previous output buffer to ensure only the desired HTML is sent
+    ob_clean();
+    ?>
+    <form method="GET" action="" class="p-3 rounded bg-light shadow-sm">
+      <input type="hidden" name="survey_source" value="dhis2">
+      <div class="row mb-4">
+        <div class="col-md-4">
+          <div class="form-group mb-3">
+            <label class="form-control-label">Select DHIS2 Instance</label>
+            <select name="dhis2_instance" class="form-control" id="dhis2-instance-select">
+              <option value="">-- Select Instance --</option>
+              <?php
+                try {
+                    $jsonConfig = getLocalDHIS2Config();
+                    foreach ($jsonConfig as $key => $config) : ?>
+                    <option value="<?= htmlspecialchars($key) ?>" <?= (isset($_GET['dhis2_instance']) && $_GET['dhis2_instance'] == $key) ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($key) ?>
+                    </option>
+                    <?php endforeach;
+                } catch (Exception $e) {
+                    echo '<option value="">Error: ' . htmlspecialchars($e->getMessage()) . '</option>';
+                }
+                ?>
+            </select>
+          </div>
+        </div>
+
+        <?php if (isset($_GET['dhis2_instance']) && !empty($_GET['dhis2_instance'])): ?>
+        <div class="col-md-4">
+          <div class="form-group mb-3">
+            <label class="form-control-label">Select Domain Type</label>
+            <select name="domain" class="form-control" id="domain-select">
+              <option value="">-- Select Domain --</option>
+              <option value="tracker" <?= (isset($_GET['domain']) && $_GET['domain'] == 'tracker') ? 'selected' : '' ?>>Tracker</option>
+              <option value="aggregate" <?= (isset($_GET['domain']) && $_GET['domain'] == 'aggregate') ? 'selected' : '' ?>>Aggregate</option>
+            </select>
+          </div>
+        </div>
+        <?php endif; ?>
+
+        <?php if (isset($_GET['dhis2_instance']) && !empty($_GET['dhis2_instance']) &&
+             isset($_GET['domain']) && $_GET['domain'] == 'tracker'): // Only show program type if domain is tracker ?>
+        <div class="col-md-4">
+          <div class="form-group mb-3">
+            <label class="form-control-label">Select Program Type</label>
+            <select name="program_type" class="form-control" id="program-type-select">
+              <option value="">-- Select Program Type --</option>
+              <option value="event" <?= (isset($_GET['program_type']) && $_GET['program_type'] == 'event') ? 'selected' : '' ?>>Event Program</option>
+              <option value="tracker" <?= (isset($_GET['program_type']) && $_GET['program_type'] == 'tracker') ? 'selected' : '' ?>>Tracker Program</option>
+            </select>
+          </div>
+        </div>
+        <?php endif; ?>
+
+
+        <?php if (isset($_GET['dhis2_instance']) && !empty($_GET['dhis2_instance']) &&
+             isset($_GET['domain']) && !empty($_GET['domain']) &&
+             (($_GET['domain'] == 'tracker' && isset($_GET['program_type']) && !empty($_GET['program_type'])) || $_GET['domain'] == 'aggregate')): ?>
+        <div class="col-md-4">
+          <div class="form-group mb-3">
+            <label class="form-control-label">
+              <?php
+                if ($_GET['domain'] == 'tracker') {
+                    echo ($_GET['program_type'] == 'tracker' ? 'Select Tracker Program' : 'Select Event Program');
+                } else {
+                    echo 'Select Dataset';
+                }
+              ?>
+            </label>
+            <select name="program_id" class="form-control" id="program-select">
+              <option value="">-- Select
+                <?php
+                if ($_GET['domain'] == 'tracker') {
+                    echo ($_GET['program_type'] == 'tracker' ? 'Tracker Program' : 'Event Program');
+                } else {
+                    echo 'Dataset';
+                }
+                ?>
+                --</option>
+              <?php
+                try {
+                    $programs = [];
+                    if ($_GET['domain'] == 'tracker' && isset($_GET['program_type'])) {
+                        $programs = getPrograms($_GET['dhis2_instance'], $_GET['program_type']);
+                    } elseif ($_GET['domain'] == 'aggregate') {
+                        $programs = getDatasets($_GET['dhis2_instance']);
+                    }
+
+
+                    foreach ($programs as $program) : ?>
+                    <option value="<?= htmlspecialchars($program['id']) ?>"
+                      <?= (isset($_GET['program_id']) && $_GET['program_id'] == $program['id']) ? 'selected' : '' ?>>
+                      <?= htmlspecialchars($program['name']) ?>
+                    </option>
+                    <?php endforeach;
+                } catch (Exception $e) {
+                    echo '<option value="">Error: ' . htmlspecialchars($e->getMessage()) . '</option>';
+                }
+                ?>
+            </select>
+          </div>
+        </div>
+        <?php endif; ?>
+      </div>
+    </form>
+    <?php
+    // Display program preview if all selections are made
+    if (isset($_GET['dhis2_instance']) && !empty($_GET['dhis2_instance']) &&
+        isset($_GET['domain']) && !empty($_GET['domain']) &&
+        isset($_GET['program_id']) && !empty($_GET['program_id']) &&
+        (($_GET['domain'] == 'tracker' && isset($_GET['program_type']) && !empty($_GET['program_type'])) || $_GET['domain'] == 'aggregate')) {
+
+        try {
+            $programDetails = getProgramDetails(
+                $_GET['dhis2_instance'],
+                $_GET['domain'],
+                $_GET['program_id'],
+                ($_GET['domain'] == 'tracker' ? $_GET['program_type'] : null)
+            );
+
+            if ($programDetails['program']) {
+                ?>
+                <div class="program-preview shadow-sm mb-4">
+                  <h3 class="mb-3 text-primary">Program Preview: <?= htmlspecialchars($programDetails['program']['name']) ?></h3>
+                  <p><strong>Domain:</strong> <?= htmlspecialchars(ucfirst($_GET['domain'])) ?></p>
+                  <?php if ($_GET['domain'] == 'tracker'): ?>
+                  <p><strong>Program Type:</strong> <?= htmlspecialchars(ucfirst($_GET['program_type'])) ?></p>
+                  <?php endif; ?>
+
+                  <?php if (!empty($programDetails['dataElements'])): ?>
+                  <div class="preview-section">
+                    <h4>Data Elements</h4>
+                    <?php foreach ($programDetails['dataElements'] as $deId => $element): ?>
+                      <div class="preview-item">
+                        <strong><?= htmlspecialchars($element['name']) ?></strong>
+                        <?php
+                        // Display option set if exists (either regular or synthetic COC options)
+                        if (!empty($element['optionSet'])):
+                            $isCategoryComboOptionSet = str_starts_with($element['optionSet']['id'], 'dhis2_cc_');
+                            $optionSetName = htmlspecialchars($element['optionSet']['name']);
+                            ?>
+                          <div>
+                            <small>
+                                Option Set: <?= $optionSetName ?>
+                                <?php if ($isCategoryComboOptionSet): ?>
+                                    (from Category Combination)
+                                <?php endif; ?>
+                            </small>
+                            <?php if (!empty($element['options'])): ?>
+                              <div class="mt-2">
+                                <?php foreach ($element['options'] as $option): ?>
+                                  <span class="option-item"><?= htmlspecialchars($option['name']) ?></span>
+                                <?php endforeach; ?>
+                              </div>
+                            <?php endif; ?>
+                          </div>
+                        <?php endif; ?>
+
+                        <?php
+                        // Display Associated Category Combo for Event Programs if not default
+                        // Aggregate's CC is now the option set itself, so no need for 'Associated Category Combo'
+                        if (($_GET['domain'] == 'tracker' && $_GET['program_type'] == 'event') &&
+                            !empty($element['categoryCombo']) &&
+                            $element['categoryCombo']['name'] !== 'default' // Only show if not 'default'
+                            ):
+                        ?>
+                          <div>
+                            <small>Associated Category Combination: <?= htmlspecialchars($element['categoryCombo']['name']) ?></small>
+                          </div>
+                        <?php endif; ?>
+                      </div>
+                    <?php endforeach; ?>
+                  </div>
+                  <?php endif; ?>
+
+                  <?php if (!empty($programDetails['attributes']) && $_GET['domain'] == 'tracker' && $_GET['program_type'] == 'tracker'): ?>
+                  <div class="preview-section">
+                    <h4>Tracked Entity Attributes</h4>
+                    <?php foreach ($programDetails['attributes'] as $attrId => $attr): ?>
+                      <div class="preview-item">
+                        <strong><?= htmlspecialchars($attr['name']) ?></strong>
+                        <?php if (!empty($attr['optionSet'])): ?>
+                          <div>
+                            <small>Option Set: <?= htmlspecialchars($attr['optionSet']['name']) ?></small>
+                            <?php if (!empty($attr['options'])): ?>
+                              <div class="mt-2">
+                                <?php foreach ($attr['options'] as $option): ?>
+                                  <span class="option-item"><?= htmlspecialchars($option['name']) ?></span>
+                                <?php endforeach; ?>
+                              </div>
+                            <?php endif; ?>
+                          </div>
+                        <?php endif; ?>
+                      </div>
+                    <?php endforeach; ?>
+                  </div>
+                  <?php endif; ?>
+
+                  <form method="POST" action="" class="mt-4">
+                    <input type="hidden" name="dhis2_instance" value="<?= htmlspecialchars($_GET['dhis2_instance']) ?>">
+                    <input type="hidden" name="domain" value="<?= htmlspecialchars($_GET['domain']) ?>">
+                    <input type="hidden" name="program_id" value="<?= htmlspecialchars($_GET['program_id']) ?>">
+                    <input type="hidden" name="program_name" value="<?= htmlspecialchars($programDetails['program']['name']) ?>">
+                    <input type="hidden" name="program_type" value="<?= htmlspecialchars($_GET['program_type'] ?? '') ?>">
+
+                    <input type="hidden" name="data_elements" value="<?= htmlspecialchars(json_encode($programDetails['dataElements'])) ?>">
+                    <input type="hidden" name="attributes" value="<?= htmlspecialchars(json_encode($programDetails['attributes'])) ?>">
+                    <input type="hidden" name="option_sets" value="<?= htmlspecialchars(json_encode($programDetails['optionSets'])) ?>">
+                    <div class="text-center mt-4">
+                      <button type="submit" name="create_survey" class="btn btn-primary action-btn shadow">
+                        <i class="fas fa-sync-alt me-2"></i> Create Survey from DHIS2
+                      </button>
+                    </div>
+                  </form>
+                </div>
+                <?php
+            }
+        } catch (Exception $e) {
+            echo '<div class="alert alert-danger">Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
+        }
+    }
+    ?>
+    <div class="text-center mt-3">
+      <a href="sb.php" class="btn btn-secondary action-btn shadow">
+        <i class="fas fa-arrow-left me-2"></i> Back
+      </a>
+    </div>
+    <?php
+    // Stop further processing for AJAX request
+    exit;
 }
 ?>
 
@@ -406,22 +732,61 @@ function getProgramDetails($instance, $domain, $programId) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DHIS2 Questions</title>
+  <title>Create New Survey</title>
   <link href="argon-dashboard-master/assets/css/nucleo-icons.css" rel="stylesheet">
   <link href="argon-dashboard-master/assets/css/nucleo-svg.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
   <link href="argon-dashboard-master/assets/css/argon-dashboard.min.css" rel="stylesheet">
   <style>
+    /* Custom styles to apply #1e3c72 and ensure coordination */
+    :root {
+        --primary-color: #1e3c72; /* Your desired primary color */
+        --primary-hover-color: #162c57; /* A slightly darker shade for hover */
+        --primary-light-color: #3b5a9a; /* A lighter shade for text/borders */
+    }
+
     body {
       font-family: Arial, sans-serif;
       background-color: #f9f9f9;
       margin: 0;
       padding: 0;
     }
-    h1 {
-      color: #333;
+    h1, h2 {
+      color: var(--primary-color);
       margin-bottom: 30px;
     }
+    .card-header.bg-gradient-primary {
+      background-image: linear-gradient(310deg, var(--primary-color) 0%, var(--primary-light-color) 100%) !important;
+    }
+    .btn-outline-primary {
+      color: var(--primary-color);
+      border-color: var(--primary-color);
+    }
+    .btn-outline-primary:hover,
+    .btn-outline-primary:focus {
+      background-color: var(--primary-color);
+      color: #fff;
+      border-color: var(--primary-color);
+    }
+    .btn-primary {
+      background-color: var(--primary-color);
+      border-color: var(--primary-color);
+    }
+    .btn-primary:hover,
+    .btn-primary:focus {
+      background-color: var(--primary-hover-color);
+      border-color: var(--primary-hover-color);
+    }
+    .text-primary {
+      color: var(--primary-color) !important;
+    }
+    .preview-section h4 {
+      border-bottom: 1px solid #eee;
+      padding-bottom: 10px;
+      margin-bottom: 15px;
+      color: var(--primary-color); /* Apply primary color to section headers */
+    }
+    /* Rest of your existing styles */
     .program-preview {
       background-color: #fff;
       border-radius: 10px;
@@ -432,12 +797,6 @@ function getProgramDetails($instance, $domain, $programId) {
     .preview-section {
       margin-bottom: 25px;
     }
-    .preview-section h4 {
-      border-bottom: 1px solid #eee;
-      padding-bottom: 10px;
-      margin-bottom: 15px;
-      color: #5e72e4;
-    }
     .preview-item {
       padding: 10px;
       border-radius: 5px;
@@ -447,6 +806,7 @@ function getProgramDetails($instance, $domain, $programId) {
     .preview-item:hover {
       background-color: #e9ecef;
     }
+  
     .option-item {
       display: inline-block;
       background-color: #e9ecef;
@@ -472,7 +832,7 @@ function getProgramDetails($instance, $domain, $programId) {
 <body>
 
   <?php include 'components/aside.php'; ?>
-  
+
   <main class="main-content position-relative border-radius-lg">
     <?php include 'components/navbar.php'; ?>
 
@@ -488,7 +848,7 @@ function getProgramDetails($instance, $domain, $programId) {
             </div>
             <div class="card-body px-4">
 
-              <?php if (isset($success_message)): ?>
+              <?php if ($success_message): ?>
                 <div class="alert alert-success" role="alert" id="success-alert">
                   <?= htmlspecialchars($success_message) ?>
                 </div>
@@ -499,7 +859,7 @@ function getProgramDetails($instance, $domain, $programId) {
                 </script>
               <?php endif; ?>
 
-              <?php if (isset($error_message)): ?>
+              <?php if ($error_message): ?>
                 <div class="alert alert-danger" role="alert">
                   <?= htmlspecialchars($error_message) ?>
                 </div>
@@ -533,7 +893,7 @@ function getProgramDetails($instance, $domain, $programId) {
                   </div>
                 </div>
                 <div class="text-center mt-4">
-                  <a href="survey.php" class="btn btn-danger action-btn shadow">
+                  <a href="survey.php" class="btn btn-secondary action-btn shadow">
                     <i class="fas fa-arrow-left me-2"></i> Back
                   </a>
                 </div>
@@ -666,7 +1026,10 @@ function getProgramDetails($instance, $domain, $programId) {
                           <div class="col-md-4">
                             <select name="questions[0][type]" class="form-control">
                               <option value="text">Text</option>
-                          
+                              <option value="select">Select</option>
+                              <option value="number">Number</option>
+                              <option value="date">Date</option>
+                              <option value="boolean">Yes/No</option>
                             </select>
                           </div>
                           <div class="col-md-2">
@@ -687,6 +1050,11 @@ function getProgramDetails($instance, $domain, $programId) {
                       </button>
                     </div>
                   </form>
+                  <div class="text-center mt-3">
+                    <a href="survey.php" class="btn btn-secondary action-btn shadow">
+                      <i class="fas fa-arrow-left me-2"></i> Back
+                    </a>
+                  </div>
                   <script>
                     // Toggle sections
                     document.getElementById('toggle-existing-questions').onclick = function() {
@@ -713,6 +1081,8 @@ function getProgramDetails($instance, $domain, $programId) {
                             <option value="text">Text</option>
                             <option value="select">Select</option>
                             <option value="number">Number</option>
+                            <option value="date">Date</option>
+                            <option value="boolean">Yes/No</option>
                           </select>
                         </div>
                         <div class="col-md-2">
@@ -734,318 +1104,76 @@ function getProgramDetails($instance, $domain, $programId) {
                     }
                     updateRemoveButtons();
                   </script>
-                  <?php
-                    // Handle local survey creation POST
-                    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_local_survey'])) {
-                      try {
-                        $conn = new PDO("mysql:host=localhost;dbname=fbtv3;charset=utf8", "root", "root");
-                        $conn->beginTransaction();
-                        // Check for duplicate survey name
-                        $stmt = $conn->prepare("SELECT id FROM survey WHERE name = ?");
-                        $stmt->execute([$_POST['local_survey_name']]);
-                        if ($stmt->fetch()) {
-                          throw new Exception("A survey with this name already exists.");
-                        }
-                        // Insert survey
-                        $stmt = $conn->prepare("INSERT INTO survey (name, type, start_date, end_date, is_active) VALUES (?, 'local', ?, ?, ?)");
-                        $startDate = !empty($_POST['start_date']) ? $_POST['start_date'] : date('Y-m-d');
-                        $endDate = !empty($_POST['end_date']) ? $_POST['end_date'] : date('Y-m-d', strtotime($startDate . ' +6 months'));
-                        $isActive = isset($_POST['is_active']) ? 1 : 0;
-                        $stmt->execute([$_POST['local_survey_name'], $startDate, $endDate, $isActive]);
-                        $surveyId = $conn->lastInsertId();
-                        $position = 1;
-                        // Attach existing questions
-                        if (!empty($_POST['attach_questions']) && is_array($_POST['attach_questions'])) {
-                          foreach ($_POST['attach_questions'] as $qid) {
-                            $stmt = $conn->prepare("INSERT INTO survey_question (survey_id, question_id, position) VALUES (?, ?, ?)");
-                            $stmt->execute([$surveyId, $qid, $position++]);
-                          }
-                        }
-                        // Insert new questions (skip empty labels)
-                        if (!empty($_POST['questions']) && is_array($_POST['questions'])) {
-                          foreach ($_POST['questions'] as $q) {
-                            if (!empty($q['label'])) {
-                              $stmt = $conn->prepare("INSERT INTO question (label, question_type, is_required) VALUES (?, ?, 1)");
-                              $stmt->execute([$q['label'], $q['type']]);
-                              $questionId = $conn->lastInsertId();
-                              $stmt = $conn->prepare("INSERT INTO survey_question (survey_id, question_id, position) VALUES (?, ?, ?)");
-                              $stmt->execute([$surveyId, $questionId, $position++]);
-                            }
-                          }
-                        }
-                        $conn->commit();
-                        echo '<div class="alert alert-success mt-3" id="success-alert">Local survey created successfully.</div>';
-                        echo '<script>setTimeout(function(){ window.location.href = "survey.php"; }, 2000);</script>';
-                      } catch (Exception $e) {
-                        if ($conn && $conn->inTransaction()) $conn->rollBack();
-                        echo '<div class="alert alert-danger mt-3">Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
-                      }
-                    }
-                  ?>
-                  <div class="text-center mt-3">
-                    <a href="sb.php" class="btn btn-secondary action-btn shadow">
-                      <i class="fas fa-arrow-left me-2"></i> Back
-                    </a>
-                  </div>
                 <?php
                 // DHIS2 SURVEY CREATION
                 elseif ($_GET['survey_source'] == 'dhis2') :
                 ?>
-                  <div id="dhis2-survey-container"></div>
+                  <div class="text-center mb-4">
+                    <h2 class="mb-1">DHIS2 Program/Dataset</h2>
+                    <div class="text-secondary mb-3">Select your DHIS2 instance, domain, and program/dataset</div>
+                  </div>
+                  <div id="dhis2-survey-container">
+                    </div>
                   <script>
                   // AJAX loader for DHIS2 survey creation
                   function loadDHIS2SurveyForm(params = {}) {
                     let url = '<?= basename($_SERVER['PHP_SELF']) ?>?survey_source=dhis2';
                     if (params.dhis2_instance) url += '&dhis2_instance=' + encodeURIComponent(params.dhis2_instance);
                     if (params.domain) url += '&domain=' + encodeURIComponent(params.domain);
+                    // Add program_type to the URL parameters
+                    if (params.program_type) url += '&program_type=' + encodeURIComponent(params.program_type);
                     if (params.program_id) url += '&program_id=' + encodeURIComponent(params.program_id);
 
-                    document.getElementById('dhis2-survey-container').innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>';
+
+                    document.getElementById('dhis2-survey-container').innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-3">Loading DHIS2 details...</p></div>';
                     fetch(url + '&ajax=1')
                     .then(res => res.text())
                     .then(html => {
-                      // Remove aside and navbar if present
-                      let aside = document.querySelector('aside');
-                      if (aside) aside.style.display = 'none';
-                      let navbar = document.querySelector('.main-content .navbar');
-                      if (navbar) navbar.style.display = 'none';
                       document.getElementById('dhis2-survey-container').innerHTML = html;
-                      // Attach event listeners for selects
+                      // Re-attach event listeners for selects within the newly loaded content
                       let instanceSel = document.getElementById('dhis2-instance-select');
                       if (instanceSel) instanceSel.onchange = function() {
-                      loadDHIS2SurveyForm({dhis2_instance: this.value});
+                        loadDHIS2SurveyForm({dhis2_instance: this.value});
                       };
                       let domainSel = document.getElementById('domain-select');
                       if (domainSel) domainSel.onchange = function() {
-                      loadDHIS2SurveyForm({
-                        dhis2_instance: document.getElementById('dhis2-instance-select').value,
-                        domain: this.value
-                      });
+                        loadDHIS2SurveyForm({
+                          dhis2_instance: document.getElementById('dhis2-instance-select').value,
+                          domain: this.value
+                        });
+                      };
+                      // New: Event listener for Program Type Select
+                      let programTypeSel = document.getElementById('program-type-select');
+                      if (programTypeSel) programTypeSel.onchange = function() {
+                        loadDHIS2SurveyForm({
+                          dhis2_instance: document.getElementById('dhis2-instance-select').value,
+                          domain: document.getElementById('domain-select').value,
+                          program_type: this.value // Pass the selected program type
+                        });
                       };
                       let progSel = document.getElementById('program-select');
                       if (progSel) progSel.onchange = function() {
-                      loadDHIS2SurveyForm({
-                        dhis2_instance: document.getElementById('dhis2-instance-select').value,
-                        domain: document.getElementById('domain-select').value,
-                        program_id: this.value
-                      });
+                        loadDHIS2SurveyForm({
+                          dhis2_instance: document.getElementById('dhis2-instance-select').value,
+                          domain: document.getElementById('domain-select').value,
+                          program_type: document.getElementById('program-type-select') ? document.getElementById('program-type-select').value : null, // Ensure program_type is passed
+                          program_id: this.value
+                        });
                       };
+                    })
+                    .catch(error => {
+                        console.error('Error loading DHIS2 survey form:', error);
+                        document.getElementById('dhis2-survey-container').innerHTML = '<div class="alert alert-danger">Failed to load DHIS2 form. Please try again.</div>';
                     });
                   }
-                  <?php if (isset($_GET['ajax']) && $_GET['ajax'] == 1): ?>
-                    // Do nothing (handled below)
-                  <?php else: ?>
-                    loadDHIS2SurveyForm({
+                  // Initial load of the DHIS2 form when the page loads
+                  loadDHIS2SurveyForm({
                     <?php if (isset($_GET['dhis2_instance'])): ?>dhis2_instance: "<?= htmlspecialchars($_GET['dhis2_instance']) ?>",<?php endif; ?>
                     <?php if (isset($_GET['domain'])): ?>domain: "<?= htmlspecialchars($_GET['domain']) ?>",<?php endif; ?>
+                    <?php if (isset($_GET['program_type'])): ?>program_type: "<?= htmlspecialchars($_GET['program_type']) ?>",<?php endif; ?>
                     <?php if (isset($_GET['program_id'])): ?>program_id: "<?= htmlspecialchars($_GET['program_id']) ?>",<?php endif; ?>
-                    });
-                  <?php endif; ?>
+                  });
                   </script>
-                  <?php
-                  // AJAX partial for DHIS2 form
-                  if (isset($_GET['ajax']) && $_GET['ajax'] == 1) {
-                  // DO NOT include aside.php or navbar.php here!
-                  ob_clean();
-                  ?>
-                  <form method="GET" action="" class="p-3 rounded bg-light shadow-sm">
-                    <input type="hidden" name="survey_source" value="dhis2">
-                    <div class="row mb-4">
-                    <div class="col-md-4">
-                      <div class="form-group mb-3">
-                      <label class="form-control-label">Select DHIS2 Instance</label>
-                      <select name="dhis2_instance" class="form-control" id="dhis2-instance-select">
-                        <option value="">-- Select Instance --</option>
-                        <?php 
-                        try {
-                          $jsonConfig = getLocalDHIS2Config();
-                          foreach ($jsonConfig as $key => $config) : ?>
-                            <option value="<?= htmlspecialchars($key) ?>" <?= (isset($_GET['dhis2_instance']) && $_GET['dhis2_instance'] == $key) ? 'selected' : '' ?>>
-                              <?= htmlspecialchars($key) ?>
-                            </option>
-                          <?php endforeach;
-                        } catch (Exception $e) {
-                          echo '<option value="">Error: ' . htmlspecialchars($e->getMessage()) . '</option>';
-                        }
-                        ?>
-                      </select>
-                      </div>
-                    </div>
-                    
-                    <?php if (isset($_GET['dhis2_instance']) && !empty($_GET['dhis2_instance'])): ?>
-                    <div class="col-md-4">
-                      <div class="form-group mb-3">
-                      <label class="form-control-label">Select Domain Type</label>
-                      <select name="domain" class="form-control" id="domain-select">
-                        <option value="">-- Select Domain --</option>
-                        <option value="tracker" <?= (isset($_GET['domain']) && $_GET['domain'] == 'tracker') ? 'selected' : '' ?>>Tracker</option>
-                        <option value="aggregate" <?= (isset($_GET['domain']) && $_GET['domain'] == 'aggregate') ? 'selected' : '' ?>>Aggregate</option>
-                      </select>
-                      </div>
-                    </div>
-                    <?php endif; ?>
-                    
-                    <?php if (isset($_GET['dhis2_instance']) && !empty($_GET['dhis2_instance']) && 
-                         isset($_GET['domain']) && !empty($_GET['domain'])): ?>
-                    <div class="col-md-4">
-                      <div class="form-group mb-3">
-                      <label class="form-control-label">
-                        <?= $_GET['domain'] == 'tracker' ? 'Select Program' : 'Select Dataset' ?>
-                      </label>
-                      <select name="program_id" class="form-control" id="program-select">
-                        <option value="">-- Select <?= $_GET['domain'] == 'tracker' ? 'Program' : 'Dataset' ?> --</option>
-                        <?php 
-                        try {
-                          $programs = $_GET['domain'] == 'tracker' 
-                            ? getTrackerPrograms($_GET['dhis2_instance']) 
-                            : getDatasets($_GET['dhis2_instance']);
-                            
-                          foreach ($programs as $program) : ?>
-                            <option value="<?= htmlspecialchars($program['id']) ?>" 
-                              <?= (isset($_GET['program_id']) && $_GET['program_id'] == $program['id']) ? 'selected' : '' ?>>
-                              <?= htmlspecialchars($program['name']) ?>
-                            </option>
-                          <?php endforeach;
-                        } catch (Exception $e) {
-                          echo '<option value="">Error: ' . htmlspecialchars($e->getMessage()) . '</option>';
-                        }
-                        ?>
-                      </select>
-                      </div>
-                    </div>
-                    <?php endif; ?>
-                    </div>
-                  </form>
-                  <?php 
-                  // Display program preview if all selections are made
-                  if (isset($_GET['dhis2_instance']) && !empty($_GET['dhis2_instance']) && 
-                    isset($_GET['domain']) && !empty($_GET['domain']) && 
-                    isset($_GET['program_id']) && !empty($_GET['program_id'])) {
-                    
-                    try {
-                      $programDetails = getProgramDetails(
-                        $_GET['dhis2_instance'], 
-                        $_GET['domain'], 
-                        $_GET['program_id']
-                      );
-                      
-                      if ($programDetails['program']) {
-                        ?>
-                        <div class="program-preview shadow-sm mb-4">
-                          <h3 class="mb-3 text-primary">Program Preview: <?= htmlspecialchars($programDetails['program']['name']) ?></h3>
-                          
-                          <?php if ($_GET['domain'] == 'aggregate' && !empty($programDetails['categoryCombos'])): ?>
-                          <div class="preview-section">
-                          <h4>Category Combinations (Will be added as questions at the top)</h4>
-                          <?php foreach ($programDetails['categoryCombos'] as $ccId => $categoryCombo): ?>
-                            <div class="preview-item">
-                            <strong><?= htmlspecialchars($categoryCombo['name']) ?></strong>
-                            <?php if (!empty($categoryCombo['categories'])): ?>
-                              <div class="mt-2">
-                                <?php foreach ($categoryCombo['categories'] as $category): ?>
-                                  <div class="ms-3 mb-1">
-                                    <i class="fas fa-sitemap me-1"></i> Category: <strong><?= htmlspecialchars($category['name']) ?></strong>
-                                    <?php if (!empty($category['categoryOptions'])): ?>
-                                      <div class="mt-1" style="font-size:12px;">
-                                        <?php foreach ($category['categoryOptions'] as $option): ?>
-                                          <span class="option-item"><?= htmlspecialchars($option['name']) ?></span>
-                                        <?php endforeach; ?>
-                                      </div>
-                                    <?php endif; ?>
-                                  </div>
-                                <?php endforeach; ?>
-                              </div>
-                            <?php endif; ?>
-                            </div>
-                          <?php endforeach; ?>
-                          </div>
-                          <?php endif; ?>
-
-                          <?php if (!empty($programDetails['dataElements'])): ?>
-                          <div class="preview-section">
-                          <h4>Data Elements</h4>
-                          <?php foreach ($programDetails['dataElements'] as $deId => $element): ?>
-                            <div class="preview-item">
-                            <strong><?= htmlspecialchars($element['name']) ?></strong>
-                            <?php if (!empty($element['optionSet'])): ?>
-                              <div>
-                              <small>Option Set: <?= htmlspecialchars($element['optionSet']['name']) ?></small>
-                              <?php if (!empty($element['options'])): ?>
-                                <div class="mt-2">
-                                <?php foreach ($element['options'] as $option): ?>
-                                  <span class="option-item"><?= htmlspecialchars($option['name']) ?></span>
-                                <?php endforeach; ?>
-                                </div>
-                              <?php endif; ?>
-                              </div>
-                            <?php endif; ?>
-                            <?php if (!empty($element['categoryCombo']) && $_GET['domain'] == 'tracker'): // Show CC for tracker DEs as well ?>
-                                <small>Category Combo: <?= htmlspecialchars($element['categoryCombo']['name']) ?></small>
-                            <?php endif; ?>
-                            </div>
-                          <?php endforeach; ?>
-                          </div>
-                          <?php endif; ?>
-                          
-                          <?php if (!empty($programDetails['attributes']) && $_GET['domain'] == 'tracker'): ?>
-                          <div class="preview-section">
-                          <h4>Tracked Entity Attributes</h4>
-                          <?php foreach ($programDetails['attributes'] as $attrId => $attr): ?>
-                            <div class="preview-item">
-                            <strong><?= htmlspecialchars($attr['name']) ?></strong>
-                            <?php if (!empty($attr['optionSet'])): ?>
-                              <div>
-                              <small>Option Set: <?= htmlspecialchars($attr['optionSet']['name']) ?></small>
-                              <?php if (!empty($attr['options'])): ?>
-                                <div class="mt-2">
-                                <?php foreach ($attr['options'] as $option): ?>
-                                  <span class="option-item"><?= htmlspecialchars($option['name']) ?></span>
-                                <?php endforeach; ?>
-                                </div>
-                              <?php endif; ?>
-                              </div>
-                            <?php endif; ?>
-                            </div>
-                          <?php endforeach; ?>
-                          </div>
-                          <?php endif; ?>
-                          
-                          <form method="POST" action="" class="mt-4">
-                          <input type="hidden" name="dhis2_instance" value="<?= htmlspecialchars($_GET['dhis2_instance']) ?>">
-                          <input type="hidden" name="domain" value="<?= htmlspecialchars($_GET['domain']) ?>">
-                          <input type="hidden" name="program_id" value="<?= htmlspecialchars($_GET['program_id']) ?>">
-                          <input type="hidden" name="program_name" value="<?= htmlspecialchars($programDetails['program']['name']) ?>">
-                          <input type="hidden" name="data_elements" value="<?= htmlspecialchars(json_encode($programDetails['dataElements'])) ?>">
-                          <?php if ($_GET['domain'] == 'tracker'): ?>
-                            <input type="hidden" name="attributes" value="<?= htmlspecialchars(json_encode($programDetails['attributes'])) ?>">
-                          <?php endif; ?>
-                          <?php if (!empty($programDetails['categoryCombos'])): // Always pass category combos if found, logic inside POST will filter by domain ?>
-                            <input type="hidden" name="category_combos" value="<?= htmlspecialchars(json_encode($programDetails['categoryCombos'])) ?>">
-                          <?php endif; ?>
-                          
-                          <div class="text-center mt-4">
-                            <button type="submit" name="create_survey" class="btn btn-primary action-btn shadow">
-                            <i class="fas fa-sync-alt me-2"></i> Create Survey from DHIS2
-                            </button>
-                          </div>
-                          </form>
-                        </div>
-                        <?php
-                      }
-                    } catch (Exception $e) {
-                      echo '<div class="alert alert-danger">Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
-                    }
-                  }
-                  ?>
-                  <div class="text-center mt-3">
-                    <a href="sb.php" class="btn btn-secondary action-btn shadow">
-                    <i class="fas fa-arrow-left me-2"></i> Back
-                    </a>
-                  </div>
-                  <?php
-                  exit;
-                  }
-                  ?>
                 <?php endif; ?>
 
               <?php endif; ?>

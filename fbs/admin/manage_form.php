@@ -226,29 +226,42 @@ $optionSets = $pdo->query("
 ")->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manage Form | Survey Admin</title>
-    <!-- Argon Dashboard CSS -->
     <link href="argon-dashboard-master/assets/css/nucleo-icons.css" rel="stylesheet">
     <link href="-dashboard-master/assets/css/nucleo-svg.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="argon-dashboard-master/assets/css/argon-dashboard.css" rel="stylesheet">
     <style>
+        :root {
+            --main-blue: #2a5298;
+            --main-blue-light: #3b6fc1;
+            --main-blue-dark: #1d3866;
+            --main-blue-bg: #f4f8fc;
+        }
         .question-card {
             transition: all 0.3s ease;
             margin-bottom: 1.5rem;
+            border: 1px solid var(--main-blue);
+            background: var(--main-blue-bg);
+            border-radius: 0.5rem;
         }
         .question-card:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 20px rgba(42, 82, 152, 0.15);
+            border-color: var(--main-blue-dark);
         }
         .question-type-badge {
             font-size: 0.75rem;
             padding: 0.35em 0.65em;
+            background: var(--main-blue);
+            color: #fff;
+            border-radius: 0.25rem;
         }
         .translation-entry {
             display: flex;
@@ -264,6 +277,7 @@ $optionSets = $pdo->query("
         }
         .language-select {
             min-width: 150px;
+            border-color: var(--main-blue);
         }
         .timeline {
             position: relative;
@@ -276,7 +290,7 @@ $optionSets = $pdo->query("
             top: 0;
             bottom: 0;
             width: 2px;
-            background: #e9ecef;
+            background: var(--main-blue);
         }
         .timeline-item {
             position: relative;
@@ -290,8 +304,41 @@ $optionSets = $pdo->query("
             width: 12px;
             height: 12px;
             border-radius: 50%;
-            background: #5e72e4;
+            background: var(--main-blue);
             margin-top: 4px;
+            border: 2px solid #fff;
+            box-shadow: 0 0 0 2px var(--main-blue-light);
+        }
+        /* Buttons and form controls */
+        .btn-primary, .btn-outline-primary {
+            background: var(--main-blue);
+            border-color: var(--main-blue-dark);
+        }
+        .btn-primary:hover, .btn-outline-primary:hover {
+            background: var(--main-blue-dark);
+            border-color: var(--main-blue-dark);
+        }
+        .form-check-input:checked {
+            background-color: var(--main-blue);
+            border-color: var(--main-blue-dark);
+        }
+        .form-select:focus, .form-control:focus {
+            border-color: var(--main-blue);
+            box-shadow: 0 0 0 0.2rem rgba(42, 82, 152, 0.15);
+        }
+        /* Table header */
+        .table thead th {
+            color: var(--main-blue-dark);
+        }
+        /* Custom badge for translations */
+        .badge.bg-gradient-secondary {
+            background: linear-gradient(87deg, var(--main-blue), var(--main-blue-light));
+            color: #fff;
+        }
+        /* Required badge */
+        .badge.bg-gradient-danger {
+            background: linear-gradient(87deg, #e74c3c, #c0392b);
+            color: #fff;
         }
     </style>
 </head>
@@ -302,7 +349,6 @@ $optionSets = $pdo->query("
         <?php include 'components/navbar.php'; ?>
         
         <div class="container-fluid py-4">
-            <!-- Header -->
             <div class="row mb-4">
                 <div class="col-12">
                     <div class="card">
@@ -316,7 +362,6 @@ $optionSets = $pdo->query("
                 </div>
             </div>
 
-            <!-- Messages -->
             <?php if (isset($_SESSION['success_message'])): ?>
                 <div class="alert alert-success alert-dismissible fade show" role="alert">
                     <?= $_SESSION['success_message'] ?>
@@ -332,12 +377,20 @@ $optionSets = $pdo->query("
                 <?php unset($_SESSION['error_message']); ?>
             <?php endif; ?>
 
-            <!-- Questions List -->
             <div class="row">
                 <div class="col-12">
                     <div class="card mb-4">
                         <div class="card-header pb-0">
-                            <h6>Existing Questions</h6>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h6>
+                                    Existing Questions
+                                    <span class="badge bg-gradient-primary ms-2"><?= count($questions) ?></span>
+                                </h6>
+                                <div class="input-group w-25">
+                                    <input type="text" class="form-control" id="questionSearchInput" placeholder="Search questions...">
+                                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                </div>
+                            </div>
                             <p class="text-sm mb-0">
                                 <i class="fas fa-info-circle text-primary"></i>
                                 All questions available in the system
@@ -346,7 +399,7 @@ $optionSets = $pdo->query("
                         <div class="card-body px-0 pt-0 pb-2">
                             <?php if ($questions): ?>
                                 <div class="table-responsive p-0">
-                                    <table class="table align-items-center mb-0">
+                                    <table class="table align-items-center mb-0" id="questionsTable">
                                         <thead>
                                             <tr>
                                                 <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Question</th>
@@ -432,7 +485,6 @@ $optionSets = $pdo->query("
         </div>
     </div>
 
-    <!-- New Question Modal -->
     <div class="modal fade" id="newQuestionModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -470,7 +522,6 @@ $optionSets = $pdo->query("
                             </div>
                         </div>
 
-                        <!-- Options Section (shown only for radio/checkbox/select) -->
                         <div class="options-section mt-3" id="optionsSection" style="display:none;">
                             <label class="form-control-label">Options Configuration</label>
                             <div class="form-check form-check-inline">
@@ -506,13 +557,20 @@ $optionSets = $pdo->query("
                             </div>
                         </div>
 
-                        <!-- Translations Section -->
                         <div class="translations-section mt-4">
                             <label class="form-control-label">Translations (Optional)</label>
                             <div id="translationsContainer">
                                 <div class="translation-entry mb-2">
                                     <select class="form-select language-select" name="lang[]">
-                                        <?php foreach ($availableLanguages as $lang): ?>
+                                        <?php 
+                                        // This variable needs to be defined in your PHP to be used here
+                                        // For demonstration, let's assume it's defined:
+                                        $availableLanguages = [
+                                            ['code' => 'en', 'name' => 'English'],
+                                            ['code' => 'es', 'name' => 'Spanish'],
+                                            ['code' => 'fr', 'name' => 'French']
+                                        ];
+                                        foreach ($availableLanguages as $lang): ?>
                                             <option value="<?= $lang['code'] ?>"><?= $lang['name'] ?></option>
                                         <?php endforeach; ?>
                                     </select>
@@ -525,7 +583,6 @@ $optionSets = $pdo->query("
                             </button>
                         </div>
 
-                        <!-- Surveys Assignment -->
                         <div class="surveys-section mt-4">
                             <label class="form-control-label">Assign to Surveys</label>
                             <div class="row">
@@ -553,7 +610,6 @@ $optionSets = $pdo->query("
 
     <?php include 'components/fixednav.php'; ?>
 
-    <!-- Core JS Files -->
     <script src="argon-dashboard-master/assets/js/core/popper.min.js"></script>
     <script src="argon-dashboard-master/assets/js/core/bootstrap.min.js"></script>
     <script src="argon-dashboard-master/assets/js/plugins/perfect-scrollbar.min.js"></script>
@@ -561,8 +617,8 @@ $optionSets = $pdo->query("
     <script src="argon-dashboard-master/assets/js/argon-dashboard.js"></script>
 
     <script>
-        // Available languages
-        const availableLanguages = <?= json_encode($availableLanguages) ?>;
+        // Available languages (ensure this is correctly populated from PHP)
+        const availableLanguages = <?= json_encode($availableLanguages ?? []) ?>; // Added null coalesce for safety
 
         // Toggle options section based on question type
         function toggleOptionsSection(type) {
@@ -628,6 +684,38 @@ $optionSets = $pdo->query("
         var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
             return new bootstrap.Tooltip(tooltipTriggerEl);
         });
+
+        // --- Search Functionality Script ---
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('questionSearchInput');
+            const questionsTableBody = document.querySelector('#questionsTable tbody');
+            const tableRows = questionsTableBody.querySelectorAll('tr');
+
+            searchInput.addEventListener('keyup', function() {
+                const searchTerm = searchInput.value.toLowerCase();
+
+                tableRows.forEach(row => {
+                    let rowText = '';
+                    // Get text from the Question Label column (first td)
+                    const questionLabelCell = row.querySelector('td:first-child h6');
+                    if (questionLabelCell) {
+                        rowText += questionLabelCell.textContent.toLowerCase();
+                    }
+                    // You can add more columns to search if needed, e.g., question type
+                    const questionTypeCell = row.querySelector('td:nth-child(2) .badge');
+                    if (questionTypeCell) {
+                        rowText += ' ' + questionTypeCell.textContent.toLowerCase();
+                    }
+                    
+                    if (rowText.includes(searchTerm)) {
+                        row.style.display = ''; // Show row
+                    } else {
+                        row.style.display = 'none'; // Hide row
+                    }
+                });
+            });
+        });
+        // --- End Search Functionality Script ---
     </script>
 </body>
 </html>

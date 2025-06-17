@@ -42,11 +42,11 @@ $surveys = $stmt->fetchAll(PDO::FETCH_ASSOC);
         .survey-card {
             transition: all 0.3s ease;
             border: none;
-            box-shadow: 0 0 2rem 0 rgba(136, 152, 170, 0.15);
+            box-shadow: 0 0 2rem 0 rgba(34, 78, 167, 0.10);
         }
         .survey-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.15);
+            box-shadow: 0 0.5rem 1.5rem rgba(34, 78, 167, 0.18);
         }
         .survey-card .card-body {
             padding: 1.5rem;
@@ -54,7 +54,7 @@ $surveys = $stmt->fetchAll(PDO::FETCH_ASSOC);
         .survey-title {
             font-size: 1.1rem;
             font-weight: 600;
-            color: #252f40;
+            color: #224ea7;
             margin-bottom: 1rem;
         }
         .submission-count {
@@ -65,20 +65,29 @@ $surveys = $stmt->fetchAll(PDO::FETCH_ASSOC);
         .submission-count i {
             font-size: 1.2rem;
             margin-right: 0.75rem;
-            color: #5e72e4;
+            color: #224ea7;
         }
         .submission-count .count {
             font-weight: 600;
-            color: #525f7f;
+            color: #224ea7;
         }
         .no-submissions {
             color: #adb5bd;
             font-style: italic;
         }
         .card-footer {
-            background-color: transparent;
+            background-color: #224ea7;
             border-top: none;
             padding: 0.75rem 1.5rem 1.5rem;
+        }
+        .card-footer .btn {
+            background: #fff;
+            color: #224ea7;
+            border: 1px solid #224ea7;
+        }
+        .card-footer .btn:hover {
+            background: #224ea7;
+            color: #fff;
         }
         .empty-state {
             text-align: center;
@@ -86,7 +95,7 @@ $surveys = $stmt->fetchAll(PDO::FETCH_ASSOC);
         }
         .empty-state-icon {
             font-size: 3rem;
-            color: #e9ecef;
+            color: #224ea7;
             margin-bottom: 1rem;
         }
     </style>
