@@ -23,23 +23,12 @@ $pageTitle = $pages[$currentPage] ?? "Admin Panel";
             <i class="fas fa-bars fa-lg"></i>
         </button>
 
-        <!-- Page Title Section -->
+        <!-- Logo Section -->
         <div class="d-flex align-items-center flex-grow-1">
-            <nav aria-label="breadcrumb">
-            <ol class="breadcrumb mb-0 navbar-breadcrumb">
-                <li class="breadcrumb-item">
-                <a href="main" class="breadcrumb-link" style="color: #ffd700; font-weight: 600;">
-                    <i class="fas fa-home me-1" style="color: #ffd700;"></i>Home
-                </a>
-                </li>
-                <li class="breadcrumb-item active navbar-breadcrumb-active" aria-current="page" style="color: #fff; font-weight: 700;">
-                <?= $pageTitle ?>
-                </li>
-            </ol>
-            <h5 class="navbar-title mb-0" style="color: #fff; text-shadow: 0 1px 8px #1e3c72, 0 0 2px #ffd700;">
-                <?= $pageTitle ?>
-            </h5>
-            </nav>
+            <a href="main.php" class="navbar-brand d-flex align-items-center" style="color: #fff; font-weight: 700; font-size: 1.25rem; text-decoration: none;">
+            <i class="fas fa-rocket me-2" style="color: #ffd700;"></i>
+            FBS Admin
+            </a>
         </div>
 
         <!-- Right-aligned navbar items -->

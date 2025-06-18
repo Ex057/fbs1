@@ -1,4 +1,5 @@
 <?php if ($activeTab == 'view') : ?>
+    
     <div class="tab-header">
         <h3><i class="fas fa-map-marker-alt me-2"></i> View Locations</h3>
     </div>

@@ -106,6 +106,25 @@ $surveys = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <main class="main-content position-relative border-radius-lg">
         <?php include 'components/navbar.php'; ?>
         
+           <!-- Page Title Section -->
+        <div class="d-flex align-items-center flex-grow-1" style="background: linear-gradient(90deg, #7786a1 0%, #7786a1 100%); padding: 1rem 1.5rem; margin-bottom: 1.5rem;">
+            <nav aria-label="breadcrumb" class="flex-grow-1">
+            <ol class="breadcrumb mb-0 navbar-breadcrumb" style="background: transparent;">
+                <li class="breadcrumb-item">
+                <a href="main" class="breadcrumb-link" style="color: #ffd700; font-weight: 600;">
+                    <i class="fas fa-home me-1" style="color: #ffd700;"></i>Home
+                </a>
+                </li>
+                <li class="breadcrumb-item active navbar-breadcrumb-active" aria-current="page" style="color: #fff; font-weight: 700;">
+                <?= $pageTitle ?>
+                </li>
+            </ol>
+            <h5 class="navbar-title mb-0" style="color: #fff; text-shadow: 0 1px 8px #1e3c72, 0 0 2px #ffd700;">
+                <?= $pageTitle ?>
+            </h5>
+            </nav>
+        </div>
+
         <div class="container-fluid py-4">
             <!-- Header -->
             <div class="row mb-4">
