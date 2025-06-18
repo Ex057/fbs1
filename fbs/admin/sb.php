@@ -957,8 +957,8 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 1 && $_GET['survey_source'] == 'dhi
       </div>
 
     <div class="container-fluid py-4">
-      <div class="row justify-content-center">
-        <div class="col-12 col-lg-10">
+      <div class="row">
+        <div class="col-12">
           <div class="card shadow-lg mb-5">
             <div class="card-header pb-0 text-center bg-gradient-primary text-white rounded-top">
               <h1 class="mb-1">
