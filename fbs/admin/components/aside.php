@@ -93,7 +93,7 @@ $menuItems = [
                     </div>
                 </div>
                 <div class="mt-2 d-grid">
-                    <a href="logout.php" class="btn btn-sm btn-outline-light">
+                    <a href="../../../index.php" class="btn btn-sm btn-outline-light">
                         <i class="fas fa-sign-out-alt me-1"></i> Logout
                     </a>
                 </div>

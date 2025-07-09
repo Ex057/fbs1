@@ -147,6 +147,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }
         }
 
+        
+
         // Commit transaction
         $conn->commit();
 

@@ -9,6 +9,7 @@ class DHIS2SubmissionHandler {
     private $programType;
     private $fieldMappingCache = [];
     private $surveyId;
+    private $datasetUID;
 
     /**
      * Constructor for DHIS2SubmissionHandler.
@@ -18,41 +19,49 @@ class DHIS2SubmissionHandler {
      * @param int $surveyId The ID of the survey to get configuration for.
      * @throws Exception If the survey configuration is found but invalid (e.g., empty instance/program UID).
      */
-    public function __construct(mysqli $conn, int $surveyId) {
+   public function __construct(mysqli $conn, int $surveyId) {
         $this->conn = $conn;
         $this->surveyId = $surveyId;
         
         $surveyConfig = $this->getSurveyConfig($surveyId);
 
-        // Check if configuration exists and is valid for DHIS2 submission
         if (!$surveyConfig || empty($surveyConfig['dhis2_instance']) || empty($surveyConfig['program_dataset'])) {
-            // This is the key change: we don't throw an exception here if the config is just missing/empty.
-            // Instead, the calling code will need to check if $this->instance and $this->programUID are set.
             $this->instance = null;
             $this->programUID = null;
+            $this->datasetUID = null; // Also set datasetUID to null
             error_log("No valid DHIS2 configuration found for survey ID: $surveyId. dhis2_instance or program_dataset might be empty/null.");
-            return; // Exit constructor early if no valid config
+            return;
         }
         
         $this->instance = $surveyConfig['dhis2_instance'];
-        $this->programUID = $surveyConfig['program_dataset'];
+        $programDatasetUID = $surveyConfig['program_dataset']; // Temporary variable for the fetched UID
         
-        error_log("Initialized DHIS2 Handler with dynamic config from survey ID: $surveyId - Instance: {$this->instance}, Program/Dataset: {$this->programUID}");
+        error_log("Initialized DHIS2 Handler with dynamic config from survey ID: $surveyId - Instance: {$this->instance}, Program/Dataset: {$programDatasetUID}");
         
-        // Determine program type by checking DHIS2 metadata
-        $this->programType = $this->determineProgramType($this->programUID);
+        // Determine program type and set the appropriate UID
+        $this->programType = $this->determineProgramType($programDatasetUID);
+        
+        if ($this->programType === 'dataset') {
+            $this->datasetUID = $programDatasetUID;
+            $this->programUID = null; // Ensure programUID is null if it's a dataset
+            error_log("Assigned program/dataset UID to datasetUID: {$this->datasetUID}");
+        } else {
+            $this->programUID = $programDatasetUID;
+            $this->datasetUID = null; // Ensure datasetUID is null if it's a program
+            error_log("Assigned program/dataset UID to programUID: {$this->programUID}");
+        }
         
         $this->loadFieldMappings();
         
-        error_log("Fully initialized DHIS2 Handler - Instance: {$this->instance}, Program/Dataset: {$this->programUID}, Type: {$this->programType}");
+        error_log("Fully initialized DHIS2 Handler - Instance: {$this->instance}, Program: {$this->programUID}, Dataset: {$this->datasetUID}, Type: {$this->programType}");
     }
 
     /**
      * Check if the handler is ready for DHIS2 submission.
      * @return bool True if instance and programUID are set, false otherwise.
      */
-    public function isReadyForSubmission(): bool {
-        return $this->instance !== null && $this->programUID !== null;
+     public function isReadyForSubmission(): bool {
+        return $this->instance !== null && ($this->programUID !== null || $this->datasetUID !== null);
     }
 
     private function getSurveyConfig(int $surveyId): ?array {
@@ -120,15 +129,15 @@ class DHIS2SubmissionHandler {
             return ['success' => false, 'message' => 'DHIS2 handler not configured for submission (missing instance or program UID).'];
         }
 
-        // Check if this submission was already sent successfully
-        if ($this->isAlreadySubmitted($submissionId)) {
-            return ['success' => true, 'message' => 'Submission was already processed successfully'];
-        }
+        // Temporarily skip duplicate submission check for diagnostics
+        // if ($this->isAlreadySubmitted($submissionId)) {
+        //     return ['success' => true, 'message' => 'Submission was already processed successfully'];
+        // }
         try {
-            // Check if this submission was already sent successfully
-            if ($this->isAlreadySubmitted($submissionId)) {
-                return ['success' => true, 'message' => 'Submission was already processed successfully'];
-            }
+            // Temporarily skip duplicate submission check for diagnostics
+            // if ($this->isAlreadySubmitted($submissionId)) {
+            //     return ['success' => true, 'message' => 'Submission was already processed successfully'];
+            // }
 
             // Get submission data with explicit JOINs to ensure we have ownership and service unit info
             $submissionData = $this->getSubmissionData($submissionId);
@@ -147,6 +156,8 @@ class DHIS2SubmissionHandler {
 
             // Log complete payload for debugging
             error_log("DHIS2 Payload ({$this->programType}): " . json_encode($payload, JSON_PRETTY_PRINT));
+         
+
 
             $result = $this->submitToDHIS2($payload);
 
@@ -361,102 +372,96 @@ class DHIS2SubmissionHandler {
     }
 
     private function prepareTrackerPayload(array $submissionData, array $dataValues, string $enrollmentUID, string $eventDate): array {
-        // For tracker programs, we need to create an enrollment and then events
-        $trackedEntityUID = $this->generateTrackedEntityUID($submissionData);
-        
-        return [
-            'trackedEntityInstances' => [
-                [
-                    'trackedEntityInstance' => $trackedEntityUID,
-                    'orgUnit' => $submissionData['location_uid'],
-                    'trackedEntityType' => 'MCPQUTHX1Ze', // Default person tracked entity type - you may need to make this configurable
-                    'enrollments' => [
-                        [
-                            'enrollment' => $enrollmentUID,
-                            'orgUnit' => $submissionData['location_uid'],
-                            'program' => $this->programUID,
-                            'enrollmentDate' => $eventDate,
-                            'incidentDate' => $eventDate,
-                            'status' => 'COMPLETED',
-                            'events' => [
-                                [
-                                    'event' => $this->generateEventUID($enrollmentUID, $submissionData),
-                                    'orgUnit' => $submissionData['location_uid'],
-                                    'program' => $this->programUID,
-                                    'programStage' => $this->getProgramStageUID(), // You'll need to implement this
-                                    'eventDate' => $eventDate,
-                                    'occurredAt' => $eventDate,
-                                    'status' => 'COMPLETED',
-                                    'dataValues' => $dataValues
-                                ]
+    return [
+        'trackedEntityInstances' => [
+            [
+                'trackedEntityInstance' => $this->generateTrackedEntityUID($submissionData),
+                'orgUnit' => $submissionData['location_uid'],
+                'trackedEntityType' => 'MCPQUTHX1Ze',
+                'enrollments' => [
+                    [
+                        'enrollment' => $enrollmentUID,
+                        'orgUnit' => $submissionData['location_uid'],
+                        'program' => $this->programUID,
+                        'enrollmentDate' => $eventDate,
+                        'incidentDate' => $eventDate,
+                        'status' => 'COMPLETED',
+                        'events' => [
+                            [
+                                'event' => $this->generateEventUID($enrollmentUID, $submissionData),
+                                'orgUnit' => $submissionData['location_uid'],
+                                'program' => $this->programUID,
+                                'programStage' => $this->getProgramStageUID(),  // Added programStage
+                                'eventDate' => $eventDate,
+                                'status' => 'COMPLETED',
+                                'dataValues' => $dataValues
                             ]
                         ]
                     ]
                 ]
             ]
-        ];
-    }
+        ]
+    ];
+}
 
 private function prepareDatasetPayload(array $submissionData, array $dataValues, string $period): array {
-    // Convert period to DHIS2 format (YYYYMM for monthly, YYYY for yearly, etc.)
-    $dhis2Period = $this->convertToDHIS2Period($period);
-    
-    // For datasets, we need to structure data differently
-    $dataValueArray = [];
-    // Check if there's a category option combination response
-    $categoryOptionCombo = null;
-    foreach ($dataValues as $dv) {
-        // Check if this data element is mapped to a category combination
-        // This is a placeholder; actual logic might need to fetch from survey configuration or question mapping
-        // For now, we'll assume if a data element ID is 'category_combo', it's the category option combo
-        if ($dv['dataElement'] === 'category_combo') {
-            $categoryOptionCombo = $dv['value'];
-            continue; // Skip adding this to data values as it's not a regular data element
-        }
-        $dataEntry = [
-            'dataElement' => $dv['dataElement'],
-            'value' => $dv['value'],
-            'orgUnit' => $submissionData['location_uid'],
-            'period' => $dhis2Period
-        ];
-        if ($categoryOptionCombo) {
-            $dataEntry['categoryOptionCombo'] = $categoryOptionCombo;
-        }
-        $dataValueArray[] = $dataEntry;
+    if ($this->datasetUID === null) {
+        throw new Exception("Dataset UID not set for dataset submission.");
     }
 
-    // If no category option combo was found in data values, try to fetch from survey configuration
-    if (!$categoryOptionCombo) {
-        $stmt = $this->conn->prepare("
-            SELECT qm.dhis2_option_set_id 
-            FROM survey s
-            JOIN survey_question sq ON s.id = sq.survey_id
-            JOIN question_dhis2_mapping qm ON sq.question_id = qm.question_id
-            WHERE s.id = ? AND qm.dhis2_dataelement_id = 'category_combo'
-            LIMIT 1
-        ");
-        $stmt->bind_param("i", $this->surveyId);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        if ($row = $result->fetch_assoc()) {
-            // Now try to get the category option combo from responses if available
+    $dhis2Period = $this->convertToDHIS2Period($period);
+    $orgUnit = $submissionData['location_uid'];
+    $preparedDataValues = [];
+    $attributeOptionCombo = null;
+    $defaultCategoryOptionCombo = 'HllvX50cXC0';
+
+    foreach ($dataValues as $dv) {
+        if ($this->getMappedUID('attribute_option_combo_field') && 
+            $dv['dataElement'] === $this->getMappedUID('attribute_option_combo_field')) {
+            $attributeOptionCombo = (string)$dv['value'];
+            continue;
+        }
+
+        $dataEntry = [
+            'dataElement' => (string)$dv['dataElement'],
+            'value' => (string)$dv['value']
+        ];
+
+        if (isset($dv['categoryOptionCombo']) && !empty($dv['categoryOptionCombo'])) {
+            $dataEntry['categoryOptionCombo'] = (string)$dv['categoryOptionCombo'];
+        } else {
+            $dataEntry['categoryOptionCombo'] = $defaultCategoryOptionCombo;
+        }
+
+        if (!is_null($attributeOptionCombo)) {
+            $dataEntry['attributeOptionCombo'] = $attributeOptionCombo;
+        }
+
+        if (isset($dv['comment']) && !empty($dv['comment'])) {
+            $dataEntry['comment'] = (string)$dv['comment'];
+        }
+        
+        $preparedDataValues[] = $dataEntry;
+    }
+
+    if (is_null($attributeOptionCombo)) {
+        $attributeAOC_DE = $this->getMappedUID('attribute_option_combo');
+        if ($attributeAOC_DE) {
             $stmt = $this->conn->prepare("
-                SELECT sr.response_value
+                SELECT sr.response_value, qm.dhis2_option_set_id
                 FROM submission_response sr
-                JOIN survey_question sq ON sr.question_id = sq.question_id
-                JOIN question_dhis2_mapping qm ON sq.question_id = qm.question_id
-                WHERE sr.submission_id = ? AND qm.dhis2_dataelement_id = 'category_combo'
+                JOIN question_dhis2_mapping qm ON sr.question_id = qm.question_id
+                WHERE sr.submission_id = ? AND qm.dhis2_dataelement_id = ?
                 LIMIT 1
             ");
-            $submissionId = $submissionData['id'];
-            $stmt->bind_param("i", $submissionId);
+            $stmt->bind_param("is", $submissionData['id'], $attributeAOC_DE);
             $stmt->execute();
             $result = $stmt->get_result();
             if ($row = $result->fetch_assoc()) {
-                $categoryOptionCombo = $this->getOptionCode($row['response_value'], $row['dhis2_option_set_id']);
-                if ($categoryOptionCombo) {
-                    foreach ($dataValueArray as &$entry) {
-                        $entry['categoryOptionCombo'] = $categoryOptionCombo;
+                $derivedAttributeOptionCombo = $this->getOptionCode($row['response_value'], $row['dhis2_option_set_id']);
+                if ($derivedAttributeOptionCombo) {
+                    foreach ($preparedDataValues as &$dataValue) {
+                        $dataValue['attributeOptionCombo'] = $derivedAttributeOptionCombo;
                     }
                 }
             }
@@ -464,7 +469,10 @@ private function prepareDatasetPayload(array $submissionData, array $dataValues,
     }
 
     return [
-        'dataValues' => $dataValueArray
+        'dataSet' => $this->datasetUID,
+        'period' => $dhis2Period,
+        'orgUnit' => $orgUnit,
+        'dataValues' => $preparedDataValues
     ];
 }
 
@@ -503,12 +511,46 @@ private function prepareDatasetPayload(array $submissionData, array $dataValues,
     }
 
     private function convertToDHIS2Period(string $period): string {
-        // Convert date format to DHIS2 period format
-        // This is a basic implementation - you may need to make it more sophisticated
+        // Handles various period formats for DHIS2 datasets:
+        // - YYYY-MM-DD (monthly, daily, weekly, yearly)
+        // - YYYY-MM (monthly)
+        // - YYYY (yearly)
+        // - W-prefixed (weekly)
+        // Returns DHIS2 period string (e.g., 202401, 2024W05, 2024Q1, 2024)
+        $period = trim($period);
+
+        // Yearly: 2024
+        if (preg_match('/^\d{4}$/', $period)) {
+            return $period;
+        }
+
+        // Monthly: 2024-01 or 2024-1
+        if (preg_match('/^(\d{4})-(\d{1,2})$/', $period, $m)) {
+            return sprintf('%04d%02d', $m[1], $m[2]);
+        }
+
+        // Quarterly: 2024Q1 or 2024-Q1
+        if (preg_match('/^(\d{4})-?Q([1-4])$/i', $period, $m)) {
+            return sprintf('%04dQ%d', $m[1], $m[2]);
+        }
+
+        // Weekly: 2024W05 or 2024-W05
+        if (preg_match('/^(\d{4})-?W(\d{1,2})$/i', $period, $m)) {
+            return sprintf('%04dW%02d', $m[1], $m[2]);
+        }
+
+        // Daily: 2024-01-15
+        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $period, $m)) {
+            return sprintf('%04d%02d%02d', $m[1], $m[2], $m[3]);
+        }
+
+        // Fallback: try to parse as date and use monthly
         $date = DateTime::createFromFormat('Y-m-d', $period);
         if ($date) {
-            return $date->format('Ym'); // Monthly format YYYYMM
+            return $date->format('Ym');
         }
+
+        // If nothing matches, return as-is
         return $period;
     }
 
@@ -655,17 +697,17 @@ private function prepareDatasetPayload(array $submissionData, array $dataValues,
     }
 
     private function getAPIEndpoint(): string {
-        switch ($this->programType) {
-            case 'event':
-                return '/api/events';
-            case 'tracker':
-                return '/api/trackedEntityInstances';
-            case 'dataset':
-                return '/api/dataValues';
-            default:
-                return '/api/events';
-        }
+    switch ($this->programType) {
+        case 'event':
+            return '/api/events';
+        case 'tracker':
+            return '/api/trackedEntityInstances';
+        case 'dataset':
+            return '/api/dataValueSets';  // Changed endpoint
+        default:
+            return '/api/events';
     }
+}
 
     private function isSuccessfulResponse(array $response): bool {
         // Event programs
@@ -673,6 +715,7 @@ private function prepareDatasetPayload(array $submissionData, array $dataValues,
             return true;
         }
 
+        
         // Tracker programs
         if (isset($response['response']['importSummaries'])) {
             foreach ($response['response']['importSummaries'] as $summary) {
@@ -683,8 +726,8 @@ private function prepareDatasetPayload(array $submissionData, array $dataValues,
         }
 
         // Datasets
-        if (isset($response['response']['status']) && $response['response']['status'] === 'SUCCESS') {
-            return true;
+         if (isset($response['status']) && $response['status'] === 'SUCCESS') {
+        return true;
         }
 
         // Check for HTTP status codes

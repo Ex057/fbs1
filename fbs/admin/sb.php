@@ -158,8 +158,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             // 1. Create survey entry
+            // Determine survey type label for display: (T) Tracker, (E) Event, (A) Aggregate
+            $surveyTypeLabel = '';
+            if ($domain === 'tracker') {
+              if ($programType === 'tracker') {
+                $surveyTypeLabel = ' (T)';
+              } elseif ($programType === 'event') {
+                $surveyTypeLabel = ' (E)';
+              }
+            } elseif ($domain === 'aggregate') {
+              $surveyTypeLabel = ' (A)';
+            }
+            $surveyDisplayName = $programName . $surveyTypeLabel;
+
             $stmt = $conn->prepare("INSERT INTO survey (name, type, dhis2_instance, program_dataset) VALUES (?, 'dhis2', ?, ?)");
-            $stmt->execute([$programName, $dhis2Instance, $programId]);
+            $stmt->execute([$surveyDisplayName, $dhis2Instance, $programId]);
             $surveyId = $conn->lastInsertId();
             $position = 1;
 
