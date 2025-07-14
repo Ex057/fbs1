@@ -319,9 +319,9 @@ if ($typeResult && $typeRow = $typeResult->fetch_assoc()) {
                     </div>
 
                     <?php if ($question['question_type'] == 'radio'): ?>
-                        <div class="radio-options">
+                     <div class="radio-options" style="display: flex; flex-wrap: wrap; gap: 12px;">
                             <?php foreach ($question['options'] as $option): ?>
-                                <div class="radio-option">
+                               <div class="radio-option" style="flex: 1 1 220px; min-width: 180px;">
                                     <input type="radio"
                                            id="option_<?php echo $question['id']; ?>_<?php echo $option['id']; ?>"
                                            name="question_<?php echo $question['id']; ?>"
@@ -334,8 +334,9 @@ if ($typeResult && $typeRow = $typeResult->fetch_assoc()) {
                         </div>
                     <?php elseif ($question['question_type'] == 'checkbox'): ?>
                         <div class="radio-options">
+                           <div class="checkbox-options" style="display: flex; flex-wrap: wrap; gap: 12px;">
                             <?php foreach ($question['options'] as $option): ?>
-                                <div class="radio-option">
+                                <div class="checkbox-option" style="flex: 1 1 220px; min-width: 180px;">
                                     <input type="checkbox"
                                            id="option_<?php echo $question['id']; ?>_<?php echo $option['id']; ?>"
                                            name="question_<?php echo $question['id']; ?>[]"
@@ -345,6 +346,8 @@ if ($typeResult && $typeRow = $typeResult->fetch_assoc()) {
                                     </label>
                                 </div>
                             <?php endforeach; ?>
+                       
+                            
                         </div>
                     <?php elseif ($question['question_type'] == 'select'): ?>
                         <select class="form-control"   name="question_<?php echo $question['id']; ?>" style="width: 60%;">

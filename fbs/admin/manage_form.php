@@ -239,21 +239,23 @@ $optionSets = $pdo->query("
     <link href="argon-dashboard-master/assets/css/argon-dashboard.css" rel="stylesheet">
     <style>
         :root {
-            --main-blue: #2a5298;
-            --main-blue-light: #3b6fc1;
-            --main-blue-dark: #1d3866;
-            --main-blue-bg: #f4f8fc;
+            --main-blue: #1d3866;
+            --main-blue-light: #2a4c8a;
+            --main-blue-dark: #142646;
+            --main-blue-bg: #f5f7fa;
+            --accent-gold: #ffd700;
+            --accent-gray: #e9ecef;
         }
         .question-card {
             transition: all 0.3s ease;
             margin-bottom: 1.5rem;
-            border: 1px solid var(--main-blue);
+            border: 1px solid var(--main-blue-light);
             background: var(--main-blue-bg);
             border-radius: 0.5rem;
         }
         .question-card:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 20px rgba(42, 82, 152, 0.15);
+            box-shadow: 0 4px 20px rgba(29, 56, 102, 0.12);
             border-color: var(--main-blue-dark);
         }
         .question-type-badge {
@@ -277,7 +279,7 @@ $optionSets = $pdo->query("
         }
         .language-select {
             min-width: 150px;
-            border-color: var(--main-blue);
+            border-color: var(--main-blue-light);
         }
         .timeline {
             position: relative;
@@ -290,7 +292,7 @@ $optionSets = $pdo->query("
             top: 0;
             bottom: 0;
             width: 2px;
-            background: var(--main-blue);
+            background: var(--main-blue-light);
         }
         .timeline-item {
             position: relative;
@@ -319,16 +321,17 @@ $optionSets = $pdo->query("
             border-color: var(--main-blue-dark);
         }
         .form-check-input:checked {
-            background-color: var(--main-blue);
+            background-color: var(--main-blue-light);
             border-color: var(--main-blue-dark);
         }
         .form-select:focus, .form-control:focus {
-            border-color: var(--main-blue);
-            box-shadow: 0 0 0 0.2rem rgba(42, 82, 152, 0.15);
+            border-color: var(--main-blue-light);
+            box-shadow: 0 0 0 0.2rem rgba(29, 56, 102, 0.15);
         }
         /* Table header */
         .table thead th {
             color: var(--main-blue-dark);
+            background: var(--accent-gray);
         }
         /* Custom badge for translations */
         .badge.bg-gradient-secondary {
@@ -337,8 +340,9 @@ $optionSets = $pdo->query("
         }
         /* Required badge */
         .badge.bg-gradient-danger {
-            background: linear-gradient(87deg, #e74c3c, #c0392b);
-            color: #fff;
+            background: linear-gradient(87deg, #fff, #fff);
+            color: var(--accent-gold);
+            border: 1px solid var(--accent-gold);
         }
     </style>
 </head>
@@ -435,9 +439,39 @@ $optionSets = $pdo->query("
                                                     <td>
                                                         <div class="d-flex px-2 py-1">
                                                             <div class="d-flex flex-column justify-content-center">
-                                                                <h6 class="mb-0 text-sm"><?= htmlspecialchars($question['question_label']) ?></h6>
-                                                                <?php if ($question['is_required']): ?>
-                                                                    <span class="badge badge-sm bg-gradient-danger">Required</span>
+                                                                <?php
+                                                                    $label = htmlspecialchars($question['question_label']);
+                                                                    // Break label into two lines if too long (e.g. > 60 chars)
+                                                                    if (mb_strlen($label) > 60) {
+                                                                        // Find a space near the middle to break at
+                                                                        $breakPos = mb_strpos($label, ' ', (int)(mb_strlen($label) / 2));
+                                                                        if ($breakPos !== false) {
+                                                                            $firstLine = mb_substr($label, 0, $breakPos);
+                                                                            $secondLine = mb_substr($label, $breakPos + 1);
+                                                                        } else {
+                                                                            // Fallback: just break at 60 chars
+                                                                            $firstLine = mb_substr($label, 0, 60);
+                                                                            $secondLine = mb_substr($label, 60);
+                                                                        }
+                                                                    } else {
+                                                                        $firstLine = $label;
+                                                                        $secondLine = '';
+                                                                    }
+                                                                ?>
+                                                                <h6 class="mb-0 text-sm">
+                                                                    <?= $firstLine ?>
+                                                                    <?php if ($question['is_required']): ?>
+                                                                        <span class="badge badge-sm bg-gradient-danger" style="font-size:1rem; margin-left:0.5rem;">*</span>
+                                                                    <?php endif; ?>
+                                                                </h6>
+                                                                <?php if ($secondLine): ?>
+                                                                    <h6 class="mb-0 text-sm"><?= $secondLine ?></h6>
+                                                                <?php endif; ?>
+                                                                <?php if (!empty($question['option_set_name'])): ?>
+                                                                    <small class="text-muted">
+                                                                        <i class="fas fa-list-ul me-1"></i>
+                                                                        <?= htmlspecialchars($question['option_set_name']) ?>
+                                                                    </small>
                                                                 <?php endif; ?>
                                                             </div>
                                                         </div>
@@ -533,27 +567,28 @@ $optionSets = $pdo->query("
                                 </div>
                             </div>
                         </div>
-                        
-                        <div class="form-group mt-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="is_required" id="is_required">
-                                <label class="custom-control-label" for="is_required">Required Question</label>
-                            </div>
-                        </div>
-
+                        <!-- Options Section -->
                         <div class="options-section mt-3" id="optionsSection" style="display:none;">
-                            <label class="form-control-label">Options Configuration</label>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="option_source" id="existingOptions" value="existing" checked>
-                                <label class="form-check-label" for="existingOptions">Use Existing Option Set</label>
+                            <label class="form-label fw-bold mb-2">
+                                <i class="fas fa-sliders-h me-1 text-primary"></i> Options Configuration
+                            </label>
+                            <div class="d-flex gap-3 mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="option_source" id="existingOptions" value="existing" checked>
+                                    <label class="form-check-label" for="existingOptions">
+                                        <i class="fas fa-database me-1"></i> Use Existing Option Set
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="option_source" id="customOptions" value="custom">
+                                    <label class="form-check-label" for="customOptions">
+                                        <i class="fas fa-pencil-alt me-1"></i> Create Custom Options
+                                    </label>
+                                </div>
                             </div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="option_source" id="customOptions" value="custom">
-                                <label class="form-check-label" for="customOptions">Create Custom Options</label>
-                            </div>
-
-                            <div class="existing-options mt-2" id="existingOptionsContainer">
+                            <div class="existing-options mb-3" id="existingOptionsContainer">
                                 <select class="form-select" name="option_set_id">
+                                    <option value="">Select Option Set</option>
                                     <?php foreach ($optionSets as $optionSet): ?>
                                         <option value="<?= $optionSet['option_set_id'] ?>">
                                             <?= htmlspecialchars($optionSet['option_set_name']) ?> 
@@ -562,12 +597,14 @@ $optionSets = $pdo->query("
                                     <?php endforeach; ?>
                                 </select>
                             </div>
-
-                            <div class="custom-options mt-2" id="customOptionsContainer" style="display:none;">
+                            <div class="custom-options mb-3" id="customOptionsContainer" style="display:none;">
                                 <div id="customOptionsList">
                                     <div class="input-group mb-2">
+                                        <span class="input-group-text bg-light"><i class="fas fa-list"></i></span>
                                         <input type="text" class="form-control" name="custom_options[]" placeholder="Option">
-                                        <button class="btn btn-outline-danger" type="button" onclick="removeOption(this)">×</button>
+                                        <button class="btn btn-outline-danger" type="button" onclick="removeOption(this)">
+                                            <i class="fas fa-times"></i>
+                                        </button>
                                     </div>
                                 </div>
                                 <button type="button" class="btn btn-sm btn-outline-primary" onclick="addOption()">
@@ -576,51 +613,46 @@ $optionSets = $pdo->query("
                             </div>
                         </div>
 
-                        <div class="translations-section mt-4">
-                            <label class="form-control-label">Translations (Optional)</label>
-                            <div id="translationsContainer">
-                                <div class="translation-entry mb-2">
-                                    <select class="form-select language-select" name="lang[]">
-                                        <?php 
-                                        // This variable needs to be defined in your PHP to be used here
-                                        // For demonstration, let's assume it's defined:
-                                        $availableLanguages = [
-                                            ['code' => 'en', 'name' => 'English'],
-                                            ['code' => 'es', 'name' => 'Spanish'],
-                                            ['code' => 'fr', 'name' => 'French']
-                                        ];
-                                        foreach ($availableLanguages as $lang): ?>
-                                            <option value="<?= $lang['code'] ?>"><?= $lang['name'] ?></option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                    <input type="text" class="form-control" name="text[]" placeholder="Translated text">
-                                    <button type="button" class="btn btn-outline-danger" onclick="removeTranslation(this)">×</button>
-                                </div>
-                            </div>
-                            <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="addTranslation()">
-                                <i class="fas fa-plus me-1"></i> Add Translation
-                            </button>
-                        </div>
-
+                        <!-- Surveys Section -->
                         <div class="surveys-section mt-4">
-                            <label class="form-control-label">Assign to Surveys</label>
-                            <div class="row">
+                            <label class="form-label fw-bold mb-2">
+                                <i class="fas fa-tasks me-1 text-primary"></i> Assign to Surveys
+                            </label>
+                            <div class="row g-3">
                                 <?php foreach ($surveys as $survey): ?>
                                     <div class="col-md-6">
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" name="survey_ids[]" value="<?= $survey['id'] ?>" id="survey_<?= $survey['id'] ?>">
-                                            <label class="form-check-label" for="survey_<?= $survey['id'] ?>">
-                                                <?= htmlspecialchars($survey['name']) ?>
-                                            </label>
+                                        <div class="card shadow-sm border-0 mb-2">
+                                            <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between">
+                                                <div class="d-flex align-items-center">
+                                                    <input class="form-check-input me-2" type="checkbox" name="survey_ids[]" value="<?= $survey['id'] ?>" id="survey_<?= $survey['id'] ?>" style="transform: scale(1.3); accent-color: #1d3866;">
+                                                    <label class="form-check-label fw-semibold" for="survey_<?= $survey['id'] ?>" style="font-size:1rem;">
+                                                        <?= htmlspecialchars($survey['name']) ?>
+                                                    </label>
+                                                </div>
+                                                <div class="d-flex align-items-center">
+                                                    <input class="form-check-input ms-2" type="checkbox" name="required_in_survey[<?= $survey['id'] ?>]" id="required_<?= $survey['id'] ?>" style="transform: scale(1.3); accent-color: #ffd700;">
+                                                    <label class="form-check-label text-danger fw-semibold" for="required_<?= $survey['id'] ?>" style="font-size:1rem;">
+                                                        <i class="fas fa-asterisk"></i> Required
+                                                    </label>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 <?php endforeach; ?>
                             </div>
+                            <small class="text-muted ms-1">
+                                <i class="fas fa-info-circle"></i>
+                                Check "Assign" to add to survey, and "Required" to make it required in that survey.
+                            </small>
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" name="add_question" class="btn btn-primary">Save Question</button>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times me-1"></i> Cancel
+                        </button>
+                        <button type="submit" name="add_question" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i> Save Question
+                        </button>
                     </div>
                 </form>
             </div>
