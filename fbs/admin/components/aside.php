@@ -3,42 +3,43 @@ $currentPage = basename($_SERVER['PHP_SELF']);
 $menuItems = [
     [
         'title' => 'Home Dashboard',
-        'icon' => 'fa-tachometer-alt',
+       'icon' => 'fa-file-lines',
           'link' => 'main.php',
         'color' => 'light', // Light stands out on dark blue
         'pages' => ['main.php']
     ],
     [
-        'title' => 'Form Management',
-        'icon' => 'fa-file-lines', // More form-like icon
+        'title' => 'Question-Bank',
+        'icon' => 'fa-question-circle', // Question mark for question bank
+        // 'icon' => 'fa-file-lines', // More form-like icon
         'link' => 'manage_form.php',
         'color' => 'success', // Green pops on blue
         'pages' => ['manage_form.php']
     ],
     [
-        'title' => 'Survey Analytics',
+        'title' => 'Analytics',
        'icon' => 'fa-chart-bar', // Clear analytics icon
         'link' => 'dashbard.php',
         'color' => 'warning', // Yellow/orange for analytics
         'pages' => ['dashbard.php']
     ],
     [
-        'title' => 'Submission Records',
+        'title' => 'Records',
            'icon' => 'fa-inbox', // Inbox for records
         'link' => 'records.php',
         'color' => 'info', // Cyan/teal for contrast
         'pages' => ['records.php']
     ],
     [
-        'title' => 'Active Surveys',
+        'title' => 'Surveys',
        'icon' => 'fa-list-check', // Checklist for surveys
         'link' => 'survey.php',
         'color' => 'danger', // Red for attention
         'pages' => ['survey.php']
     ],
     [
-    'title' => 'Admin Settings',
-    'icon' => 'fa-gear',
+    'title' => 'Settings',
+    'icon' => 'fa-sliders-h',
     'link' => 'settings.php',
     'color' => 'light', // Light for visibility
     'pages' => ['settings.php']
@@ -107,7 +108,7 @@ $menuItems = [
 <style>
     /* Custom Sidenav Background and Text Colors */
     .custom-sidenav-bg {
-        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%) !important; /* Dark Blue Gradient */
+           background: linear-gradient(90deg, #020617 0%, #020617 100%)!important; /* Dark Blue Gradient */
         /* Alternative: More vibrant gradient */
         /* background: linear-gradient(135deg, #4CAF50 0%, #8BC34A 100%) !important; /* Green Gradient */
         /* background: linear-gradient(135deg, #FF5722 0%, #FF9800 100%) !important; /* Orange Gradient */

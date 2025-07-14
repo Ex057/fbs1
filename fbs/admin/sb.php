@@ -951,7 +951,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 1 && $_GET['survey_source'] == 'dhi
       // Set the page title variable for use in breadcrumb and header
       $pageTitle = "Create New Survey";
       ?>
-      <div class="d-flex align-items-center flex-grow-1" style="background: linear-gradient(90deg, #7786a1 0%, #7786a1 100%);  padding: 1rem 1.5rem; margin-bottom: 1.5rem;">
+      <div class="d-flex align-items-center flex-grow-1" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);  padding: 1rem 1.5rem; margin-bottom: 1.5rem;">
         <nav aria-label="breadcrumb" class="flex-grow-1">
           <ol class="breadcrumb mb-0 navbar-breadcrumb" style="background: transparent;">
             <li class="breadcrumb-item">
@@ -975,7 +975,10 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 1 && $_GET['survey_source'] == 'dhi
           <div class="card shadow-lg mb-5">
             <div class="card-header pb-0 text-center bg-gradient-primary text-white rounded-top">
               <h1 class="mb-1">
-                <i class="fas fa-exclamation-circle me-2"></i> Create New Survey
+                <span style="color: #fff; text-shadow: 0 0 8px #000, 0 0 2px #ffd700;">
+                  <i class="fas fa-exclamation-circle me-2" style="color: #000; text-shadow: 0 0 8px #fff;"></i> 
+                  <span style="color: #fff; , 0 0 2px #ffd700;">Create New Survey</span>
+                </span>
               </h1>
               <p class="mb-0">Choose how you want to create your survey</p>
             </div>
@@ -1000,31 +1003,88 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 1 && $_GET['survey_source'] == 'dhi
 
               <?php if (!isset($_GET['survey_source'])): ?>
                 <div class="row justify-content-center mb-4">
-                  <div class="col-md-5 mb-3">
-                    <form method="get" action="">
-                      <input type="hidden" name="survey_source" value="local">
-                      <button type="submit" class="w-100 btn btn-outline-primary py-4 shadow-sm" style="border-radius: 16px; border-width: 2px;">
-                        <div class="mb-2" style="font-size: 2.5rem;">
-                          <i class="fa-solid fa-pen-to-square"></i>
+                  <div class="col-md-8 mb-4">
+                    <form method="get" action="" id="basic-survey-details-form">
+                      <div class="card p-4 shadow-sm mb-3">
+                        <h4 class="mb-3 text-primary">Survey Details</h4>
+                        <div class="mb-3">
+                          <label class="form-label">Survey Title <span class="text-danger">*</span></label>
+                          <input type="text" name="survey_title" class="form-control" required>
                         </div>
-                        <div class="fw-bold" style="font-size: 1.3rem;">Local Survey</div>
-                        <div class="text-secondary mt-2">Create a custom survey with your own questions</div>
-                      </button>
-                    </form>
-                  </div>
-                  <div class="col-md-5 mb-3">
-                    <form method="get" action="">
-                      <input type="hidden" name="survey_source" value="dhis2">
-                      <button type="submit" class="w-100 btn btn-outline-primary py-4 shadow-sm" style="border-radius: 16px; border-width: 2px;">
-                        <div class="mb-2" style="font-size: 2.5rem;">
-                          <i class="fa-solid fa-database"></i>
+                        <div class="mb-3">
+                          <label class="form-label">Description</label>
+                          <textarea name="survey_description" class="form-control" rows="2"></textarea>
                         </div>
-                        <div class="fw-bold" style="font-size: 1.3rem;">DHIS2 Program/Dataset</div>
-                        <div class="text-secondary mt-2">Import from DHIS2 program or dataset</div>
-                      </button>
+                        <div class="mb-3">
+                          <label class="form-label">Target Audience <span class="text-danger">*</span></label>
+                          <select name="target_audience" class="form-control" required>
+                            <option value="">-- Select Audience --</option>
+                            <option value="students">Students</option>
+                            <option value="teachers">Teachers</option>
+                            <option value="health_workers">Health Workers</option>
+                            <option value="community_members">Community Members</option>
+                            <option value="other">Other</option>
+                          </select>
+                        </div>
+                        <div class="mb-3">
+                          <label class="form-label">Category</label>
+                          <input type="text" name="category" class="form-control" placeholder="e.g. Health, Education">
+                        </div>
+                        <div class="mb-3">
+                          <label class="form-label">Area</label>
+                          <input type="text" name="area" class="form-control" placeholder="e.g. Region, District, Facility">
+                        </div>
+                        <div class="mb-3">
+                          <label class="form-label">Survey Type <span class="text-danger">*</span></label>
+                          <select name="survey_source" class="form-control" id="survey-type-select" required>
+                            <option value="">-- Select Survey Type --</option>
+                            <option value="local">Local Survey</option>
+                            <option value="dhis2">DHIS2 Program/Dataset</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div class="row" id="survey-type-buttons" style="display:none;">
+                        <div class="col-md-6 mb-3">
+                          <button type="submit" name="survey_source" value="local" class="w-100 btn btn-outline-primary py-4 shadow-sm" style="border-radius: 16px; border-width: 2px;">
+                            <div class="mb-2" style="font-size: 2.5rem;">
+                              <i class="fa-solid fa-pen-to-square"></i>
+                            </div>
+                            <div class="fw-bold" style="font-size: 1.3rem;">Local Survey</div>
+                            <div class="text-secondary mt-2">Create a custom survey with your own questions</div>
+                          </button>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                          <button type="submit" name="survey_source" value="dhis2" class="w-100 btn btn-outline-primary py-4 shadow-sm" style="border-radius: 16px; border-width: 2px;">
+                            <div class="mb-2" style="font-size: 2.5rem;">
+                              <i class="fa-solid fa-database"></i>
+                            </div>
+                            <div class="fw-bold" style="font-size: 1.3rem;">DHIS2 Program/Dataset</div>
+                            <div class="text-secondary mt-2">Import from DHIS2 program or dataset</div>
+                          </button>
+                        </div>
+                      </div>
                     </form>
                   </div>
                 </div>
+                <script>
+                  // Hide buttons, show only after survey type is selected (if you want to use buttons instead of dropdown submit)
+                  document.addEventListener('DOMContentLoaded', function() {
+                    var surveyTypeSelect = document.getElementById('survey-type-select');
+                    var buttonsRow = document.getElementById('survey-type-buttons');
+                    if (surveyTypeSelect && buttonsRow) {
+                      surveyTypeSelect.onchange = function() {
+                        // If you want to show buttons after selection, uncomment below:
+                        // buttonsRow.style.display = this.value ? '' : 'none';
+                        // If you want to submit on select, submit the form:
+                        if (this.value) {
+                          document.getElementById('basic-survey-details-form').submit();
+                        }
+                      };
+                      // Initially hidden
+                      buttonsRow.style.display = 'none';
+                    }
+                  });
+                </script>
                 <div class="text-center mt-4">
                   <a href="survey.php" class="btn btn-secondary action-btn shadow">
                     <i class="fas fa-arrow-left me-2"></i> Back
@@ -1184,7 +1244,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 1 && $_GET['survey_source'] == 'dhi
                     </div>
                   </form>
                   <div class="text-center mt-3">
-                    <a href="survey.php" class="btn btn-secondary action-btn shadow">
+                    <a href="sb.php" class="btn btn-secondary action-btn shadow">
                       <i class="fas fa-arrow-left me-2"></i> Back
                     </a>
                   </div>

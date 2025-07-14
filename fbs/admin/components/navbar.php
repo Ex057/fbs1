@@ -193,7 +193,8 @@ $pageTitle = $pages[$currentPage] ?? "Admin Panel";
         left: 250px; /* Adjust this value to match your sidebar width */
         right: 0;
         z-index: 1050;
-        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%) !important;
+       background: linear-gradient(90deg, #020617 0%, #020617 100%) !important;   // 
+
         backdrop-filter: blur(15px);
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         padding: 0.75rem 1rem;

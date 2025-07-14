@@ -403,7 +403,7 @@ try {
     <div class="main-content position-relative border-radius-lg">
         <?php include 'components/navbar.php'; ?>
            <!-- Page Title Section -->
-        <div class="d-flex align-items-center flex-grow-1 py-3 px-2" style="background: linear-gradient(90deg, #7786a1 0%, #7786a1 100%);">
+        <div class="d-flex align-items-center flex-grow-1 py-3 px-2" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);">
             <nav aria-label="breadcrumb" class="flex-grow-1">
             <ol class="breadcrumb mb-1 navbar-breadcrumb" style="background: transparent;">
                 <li class="breadcrumb-item">
