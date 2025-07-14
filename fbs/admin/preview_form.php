@@ -849,7 +849,29 @@ unset($option);   // Break the reference with the last element
                 showFooterNoteShare: toggleFooterNoteShare.checked
             };
             localStorage.setItem('surveyPreviewSettings_<?php echo $surveyId; ?>', JSON.stringify(settings));
-            alert('Preview settings saved!');
+            // Show a styled toast notification instead of alert
+            let toast = document.createElement('div');
+            toast.textContent = 'Preview settings saved!';
+            toast.style.position = 'fixed';
+            toast.style.bottom = '180px';
+            toast.style.left = '50%';
+            toast.style.transform = 'translateX(-50%)';
+            toast.style.background = 'orange';
+            toast.style.color = '#fff';
+            toast.style.padding = '12px 28px';
+            toast.style.borderRadius = '6px';
+            toast.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+            toast.style.fontSize = '16px';
+            toast.style.zIndex = '2000';
+            toast.style.opacity = '0';
+            toast.style.transition = 'opacity 0.3s';
+
+            document.body.appendChild(toast);
+            setTimeout(() => { toast.style.opacity = '1'; }, 10);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => { document.body.removeChild(toast); }, 400);
+            }, 1800);
         };
 
         /**
