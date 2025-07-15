@@ -344,6 +344,54 @@ $optionSets = $pdo->query("
             color: var(--accent-gold);
             border: 1px solid var(--accent-gold);
         }
+        .survey-card:hover {
+    border-color: #1d3866 !important;
+    box-shadow: 0 2px 8px rgba(29, 56, 102, 0.15);
+    }
+
+    .survey-card.selected {
+        border-color: #1d3866 !important;
+        background-color: #f8f9ff;
+    }
+
+    .form-check-input:checked {
+        background-color: #1d3866;
+        border-color: #1d3866;
+    }
+
+    .required-survey-checkbox:checked {
+        background-color: #dc3545;
+        border-color: #dc3545;
+    }
+
+    .form-check-input:focus {
+        border-color: #1d3866;
+        box-shadow: 0 0 0 0.2rem rgba(29, 56, 102, 0.25);
+    }
+
+    .required-survey-checkbox:focus {
+        border-color: #dc3545;
+        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+    }
+
+    .form-check-label {
+        user-select: none;
+    }
+        .form-check-label:hover {
+            cursor: pointer;
+            color: #1d3866;
+        }
+.required-asterisk {
+    color: #dc3545;           /* Bootstrap's danger/red */
+    font-size: 1.4rem;
+    margin-left: 0.5rem;
+    font-weight: bold;
+    vertical-align: middle;
+    background: none;
+    border: none;
+    padding: 0;
+}
+
     </style>
 </head>
 <body class="g-sidenav-show bg-gray-100">
@@ -461,7 +509,9 @@ $optionSets = $pdo->query("
                                                                 <h6 class="mb-0 text-sm">
                                                                     <?= $firstLine ?>
                                                                     <?php if ($question['is_required']): ?>
-                                                                        <span class="badge badge-sm bg-gradient-danger" style="font-size:1rem; margin-left:0.5rem;">*</span>
+                                                                      <span class="required-asterisk">*</span>
+
+  
                                                                     <?php endif; ?>
                                                                 </h6>
                                                                 <?php if ($secondLine): ?>
@@ -539,7 +589,7 @@ $optionSets = $pdo->query("
     </div>
 
     <div class="modal fade" id="newQuestionModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
+        <div class="modal-dialog modal-xl">
             <div class="modal-content">
                 <form method="POST" action="">
                     <div class="modal-header">
@@ -613,38 +663,114 @@ $optionSets = $pdo->query("
                             </div>
                         </div>
 
-                        <!-- Surveys Section -->
-                        <div class="surveys-section mt-4">
-                            <label class="form-label fw-bold mb-2">
-                                <i class="fas fa-tasks me-1 text-primary"></i> Assign to Surveys
-                            </label>
-                            <div class="row g-3">
-                                <?php foreach ($surveys as $survey): ?>
-                                    <div class="col-md-6">
-                                        <div class="card shadow-sm border-0 mb-2">
-                                            <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between">
-                                                <div class="d-flex align-items-center">
-                                                    <input class="form-check-input me-2" type="checkbox" name="survey_ids[]" value="<?= $survey['id'] ?>" id="survey_<?= $survey['id'] ?>" style="transform: scale(1.3); accent-color: #1d3866;">
-                                                    <label class="form-check-label fw-semibold" for="survey_<?= $survey['id'] ?>" style="font-size:1rem;">
-                                                        <?= htmlspecialchars($survey['name']) ?>
-                                                    </label>
-                                                </div>
-                                                <div class="d-flex align-items-center">
-                                                    <input class="form-check-input ms-2" type="checkbox" name="required_in_survey[<?= $survey['id'] ?>]" id="required_<?= $survey['id'] ?>" style="transform: scale(1.3); accent-color: #ffd700;">
-                                                    <label class="form-check-label text-danger fw-semibold" for="required_<?= $survey['id'] ?>" style="font-size:1rem;">
-                                                        <i class="fas fa-asterisk"></i> Required
-                                                    </label>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
+<!-- Surveys Section -->
+                        <?php /* --- Survey Assignment Section (Refactored) --- */ ?>
+<div class="surveys-section mt-4">
+    <label class="form-label fw-bold mb-3">
+        <i class="fas fa-poll me-2 text-primary"></i> Survey Assignment
+    </label>
+
+     <div class="mt-3 p-3 bg-light rounded">
+        <small class="text-muted d-flex align-items-center">
+            <i class="fas fa-info-circle me-2"></i>
+            Select surveys to assign this question to. Mark as "Required" if the question must be answered in that survey.
+        </small>
+    </div>
+
+    <div class="row g-3">
+        <?php foreach ($surveys as $survey): ?>
+            <div class="col-md-6">
+                <div class="card h-100 border survey-card" style="border-color: #e0e0e0 !important; transition: all 0.3s ease;">
+                    <div class="card-body py-3 px-4">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div class="d-flex align-items-center flex-grow-1">
+                                <div class="form-check me-3">
+                                    <input 
+                                        class="form-check-input assign-survey-checkbox" 
+                                        type="checkbox" 
+                                        name="survey_ids[]" 
+                                        value="<?= $survey['id'] ?>" 
+                                        id="survey_<?= $survey['id'] ?>" 
+                                        style="width: 18px; height: 18px; border: 2px solid #1d3866; border-radius: 4px;"
+                                        data-survey-id="<?= $survey['id'] ?>"
+                                    >
+                                    <label class="form-check-label fw-medium text-dark" for="survey_<?= $survey['id'] ?>" style="font-size: 15px; cursor: pointer;">
+                                        <?= htmlspecialchars($survey['name']) ?>
+                                    </label>
+                                </div>
                             </div>
-                            <small class="text-muted ms-1">
-                                <i class="fas fa-info-circle"></i>
-                                Check "Assign" to add to survey, and "Required" to make it required in that survey.
-                            </small>
+                            <div class="d-flex align-items-center required-section" style="display: none;" data-survey-id="<?= $survey['id'] ?>">
+                                <div class="form-check">
+                                    <input 
+                                        class="form-check-input required-survey-checkbox" 
+                                        type="checkbox" 
+                                        name="required_in_survey[<?= $survey['id'] ?>]" 
+                                        id="required_<?= $survey['id'] ?>" 
+                                        style="width: 16px; height: 16px; border: 2px solid #dc3545; border-radius: 4px;"
+                                        data-survey-id="<?= $survey['id'] ?>"
+                                    >
+                                    <label 
+                                        class="form-check-label text-danger fw-medium required-label" 
+                                        for="required_<?= $survey['id'] ?>" 
+                                        style="font-size: 13px; cursor: pointer;"
+                                        data-survey-id="<?= $survey['id'] ?>"
+                                    >
+                                        <i class="fas fa-asterisk me-1" style="font-size: 10px;"></i>Required
+                                    </label>
+                                </div>
+                            </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+        <?php endforeach; ?>
+    </div>
+   
+</div>
+
+
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.assign-survey-checkbox').forEach(function(assignCheckbox) {
+        var surveyId = assignCheckbox.getAttribute('data-survey-id');
+        var requiredSection = document.querySelector('.required-section[data-survey-id="' + surveyId + '"]');
+        var requiredCheckbox = document.querySelector('.required-survey-checkbox[data-survey-id="' + surveyId + '"]');
+        var surveyCard = assignCheckbox.closest('.survey-card');
+
+        // Always hide required section on load
+        requiredSection.style.display = 'none';
+        surveyCard.classList.remove('selected');
+
+        // Handle assign checkbox change
+        assignCheckbox.addEventListener('change', function() {
+            if (assignCheckbox.checked) {
+                surveyCard.classList.add('selected');
+                requiredSection.style.display = 'flex';
+            } else {
+                surveyCard.classList.remove('selected');
+                requiredSection.style.display = 'none';
+                requiredCheckbox.checked = false;
+            }
+        });
+
+        // Add hover effects
+        surveyCard.addEventListener('mouseenter', function() {
+            if (!assignCheckbox.checked) {
+                surveyCard.style.borderColor = '#1d3866';
+                surveyCard.style.boxShadow = '0 2px 8px rgba(29, 56, 102, 0.15)';
+            }
+        });
+
+        surveyCard.addEventListener('mouseleave', function() {
+            if (!assignCheckbox.checked) {
+                surveyCard.style.borderColor = '#e0e0e0';
+                surveyCard.style.boxShadow = 'none';
+            }
+        });
+    });
+});
+</script>
                     </div>
                     <div class="modal-footer bg-light">
                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">

@@ -405,76 +405,91 @@ class DHIS2SubmissionHandler {
 }
 
 private function prepareDatasetPayload(array $submissionData, array $dataValues, string $period): array {
-    if ($this->datasetUID === null) {
-        throw new Exception("Dataset UID not set for dataset submission.");
-    }
-
-    $dhis2Period = $this->convertToDHIS2Period($period);
-    $orgUnit = $submissionData['location_uid'];
-    $preparedDataValues = [];
-    $attributeOptionCombo = null;
-    $defaultCategoryOptionCombo = 'HllvX50cXC0';
-
-    foreach ($dataValues as $dv) {
-        if ($this->getMappedUID('attribute_option_combo_field') && 
-            $dv['dataElement'] === $this->getMappedUID('attribute_option_combo_field')) {
-            $attributeOptionCombo = (string)$dv['value'];
-            continue;
+        if ($this->datasetUID === null) {
+            throw new Exception("Dataset UID not set for dataset submission.");
         }
 
-        $dataEntry = [
-            'dataElement' => (string)$dv['dataElement'],
-            'value' => (string)$dv['value']
-        ];
-
-        if (isset($dv['categoryOptionCombo']) && !empty($dv['categoryOptionCombo'])) {
-            $dataEntry['categoryOptionCombo'] = (string)$dv['categoryOptionCombo'];
-        } else {
-            $dataEntry['categoryOptionCombo'] = $defaultCategoryOptionCombo;
+        // Option 1: If period is empty, use today's date in YYYYMMDD format
+        if (empty($period)) {
+            $period = date('Y-m-d');
         }
 
-        if (!is_null($attributeOptionCombo)) {
-            $dataEntry['attributeOptionCombo'] = $attributeOptionCombo;
+        // Ensure period is in YYYYMMDD format for daily surveys
+        $dhis2Period = $this->convertToDHIS2Period($period); // Should return YYYYMMDD
+        $orgUnit = (string)$submissionData['location_uid'];
+        $preparedDataValues = [];
+        $attributeOptionCombo = null;
+        $defaultCategoryOptionCombo = 'HllvX50cXC0';
+        $defaultAttributeOptionCombo = 'HllvX50cXC0'; // Confirm this is correct for your DHIS2 instance
+
+        // First pass: check if attributeOptionCombo is set in dataValues
+        foreach ($dataValues as $dv) {
+            if ($this->getMappedUID('attribute_option_combo_field') && 
+                $dv['dataElement'] === $this->getMappedUID('attribute_option_combo_field')) {
+                $attributeOptionCombo = (string)$dv['value'];
+                continue;
+            }
         }
 
-        if (isset($dv['comment']) && !empty($dv['comment'])) {
-            $dataEntry['comment'] = (string)$dv['comment'];
-        }
-        
-        $preparedDataValues[] = $dataEntry;
-    }
-
-    if (is_null($attributeOptionCombo)) {
-        $attributeAOC_DE = $this->getMappedUID('attribute_option_combo');
-        if ($attributeAOC_DE) {
-            $stmt = $this->conn->prepare("
-                SELECT sr.response_value, qm.dhis2_option_set_id
-                FROM submission_response sr
-                JOIN question_dhis2_mapping qm ON sr.question_id = qm.question_id
-                WHERE sr.submission_id = ? AND qm.dhis2_dataelement_id = ?
-                LIMIT 1
-            ");
-            $stmt->bind_param("is", $submissionData['id'], $attributeAOC_DE);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            if ($row = $result->fetch_assoc()) {
-                $derivedAttributeOptionCombo = $this->getOptionCode($row['response_value'], $row['dhis2_option_set_id']);
-                if ($derivedAttributeOptionCombo) {
-                    foreach ($preparedDataValues as &$dataValue) {
-                        $dataValue['attributeOptionCombo'] = $derivedAttributeOptionCombo;
+        // If not set, try to derive it from DB
+        if (is_null($attributeOptionCombo)) {
+            $attributeAOC_DE = $this->getMappedUID('attribute_option_combo');
+            if ($attributeAOC_DE) {
+                $stmt = $this->conn->prepare("
+                    SELECT sr.response_value, qm.dhis2_option_set_id
+                    FROM submission_response sr
+                    JOIN question_dhis2_mapping qm ON sr.question_id = qm.question_id
+                    WHERE sr.submission_id = ? AND qm.dhis2_dataelement_id = ?
+                    LIMIT 1
+                ");
+                $stmt->bind_param("is", $submissionData['id'], $attributeAOC_DE);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                if ($row = $result->fetch_assoc()) {
+                    $derivedAttributeOptionCombo = $this->getOptionCode($row['response_value'], $row['dhis2_option_set_id']);
+                    if ($derivedAttributeOptionCombo) {
+                        $attributeOptionCombo = $derivedAttributeOptionCombo;
                     }
                 }
             }
         }
-    }
 
-    return [
-        'dataSet' => $this->datasetUID,
-        'period' => $dhis2Period,
-        'orgUnit' => $orgUnit,
-        'dataValues' => $preparedDataValues
-    ];
-}
+        // Always set attributeOptionCombo, defaulting if not found
+        if (is_null($attributeOptionCombo)) {
+            $attributeOptionCombo = $defaultAttributeOptionCombo;
+        }
+
+        // Prepare dataValues
+        foreach ($dataValues as $dv) {
+            // Skip the attribute option combo field itself
+            if ($this->getMappedUID('attribute_option_combo_field') && 
+                $dv['dataElement'] === $this->getMappedUID('attribute_option_combo_field')) {
+                continue;
+            }
+
+            $dataEntry = [
+                'dataElement' => (string)$dv['dataElement'],
+                'value' => (string)$dv['value'],
+                'categoryOptionCombo' => isset($dv['categoryOptionCombo']) && !empty($dv['categoryOptionCombo'])
+                    ? (string)$dv['categoryOptionCombo']
+                    : $defaultCategoryOptionCombo,
+                'attributeOptionCombo' => $attributeOptionCombo
+            ];
+
+            if (isset($dv['comment']) && !empty($dv['comment'])) {
+                $dataEntry['comment'] = (string)$dv['comment'];
+            }
+
+            $preparedDataValues[] = $dataEntry;
+        }
+
+        return [
+            'dataSet' => $this->datasetUID,
+            'period' => $dhis2Period,
+            'orgUnit' => $orgUnit,
+            'dataValues' => $preparedDataValues
+        ];
+    }
 
     private function generateTrackedEntityUID(array $submissionData): string {
         $uniqueFields = [

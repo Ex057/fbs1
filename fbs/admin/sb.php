@@ -951,7 +951,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 1 && $_GET['survey_source'] == 'dhi
       // Set the page title variable for use in breadcrumb and header
       $pageTitle = "Create New Survey";
       ?>
-      <div class="d-flex align-items-center flex-grow-1" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);  padding: 1rem 1.5rem; margin-bottom: 1.5rem;">
+      <div class="d-flex align-items-center flex-grow-1" style="bbackground: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);  padding: 1rem 1.5rem; margin-bottom: 1.5rem;">
         <nav aria-label="breadcrumb" class="flex-grow-1">
           <ol class="breadcrumb mb-0 navbar-breadcrumb" style="background: transparent;">
             <li class="breadcrumb-item">
