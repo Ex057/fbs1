@@ -595,3 +595,87 @@ textarea.form-control {
     color: #999;
     font-style: italic;
 }
+
+/* --- Responsive Survey Controls & Options --- */
+
+/* Radio/Checkbox Options: Default (Desktop) */
+.radio-options,
+.checkbox-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.radio-option,
+.checkbox-option {
+    flex: 1 1 220px;
+    min-width: 180px;
+    max-width: 100%;
+    display: flex;
+    align-items: center;
+    padding: 4px 0;
+}
+
+/* Make label clickable and space out nicely */
+.radio-option label,
+.checkbox-option label {
+    margin-left: 6px;
+    font-size: 1rem;
+    cursor: pointer;
+    word-break: break-word;
+}
+
+/* --- Responsive: Tablets and Below --- */
+@media (max-width: 900px) {
+    .radio-option,
+    .checkbox-option {
+        flex: 1 1 48%;
+        min-width: 140px;
+        font-size: 0.97rem;
+    }
+}
+
+/* --- Responsive: Small Devices (Phones) --- */
+@media (max-width: 600px) {
+    .radio-options,
+    .checkbox-options {
+        gap: 8px;
+    }
+    .radio-option,
+    .checkbox-option {
+        flex: 1 1 100%;
+        min-width: 0;
+        font-size: 0.95rem;
+        padding: 2px 0;
+    }
+    .radio-option label,
+    .checkbox-option label {
+        font-size: 0.97rem;
+    }
+    /* Reduce container padding for pagination controls */
+    .pagination-controls {
+        max-width: 98vw;
+        padding: 8px 0;
+        gap: 10px;
+    }
+    .pagination-controls button {
+        min-width: 80px;
+        padding: 8px 10px;
+        font-size: 0.97rem;
+    }
+}
+
+/* --- Extra Small Devices (Very Small Phones) --- */
+@media (max-width: 400px) {
+    .pagination-controls {
+        flex-direction: column;
+        gap: 6px;
+        padding: 6px 0;
+    }
+    .pagination-controls button {
+        width: 100%;
+        min-width: 0;
+        font-size: 0.95rem;
+    }
+}

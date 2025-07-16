@@ -951,7 +951,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 1 && $_GET['survey_source'] == 'dhi
       // Set the page title variable for use in breadcrumb and header
       $pageTitle = "Create New Survey";
       ?>
-      <div class="d-flex align-items-center flex-grow-1" style="bbackground: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);  padding: 1rem 1.5rem; margin-bottom: 1.5rem;">
+      <div class="d-flex align-items-center flex-grow-1" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);  padding: 1rem 1.5rem; margin-bottom: 1.5rem;">
         <nav aria-label="breadcrumb" class="flex-grow-1">
           <ol class="breadcrumb mb-0 navbar-breadcrumb" style="background: transparent;">
             <li class="breadcrumb-item">
@@ -975,9 +975,9 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 1 && $_GET['survey_source'] == 'dhi
           <div class="card shadow-lg mb-5">
             <div class="card-header pb-0 text-center bg-gradient-primary text-white rounded-top">
               <h1 class="mb-1">
-                <span style="color: #fff; text-shadow: 0 0 8px #000, 0 0 2px #ffd700;">
-                  <i class="fas fa-exclamation-circle me-2" style="color: #000; text-shadow: 0 0 8px #fff;"></i> 
-                  <span style="color: #fff; , 0 0 2px #ffd700;">Create New Survey</span>
+                <span class="text-white">
+                  <i class="fas fa-exclamation-circle me-2" style="color: #000; 8px #fff;"></i> 
+                  Create New Survey
                 </span>
               </h1>
               <p class="mb-0">Choose how you want to create your survey</p>
@@ -1008,14 +1008,22 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 1 && $_GET['survey_source'] == 'dhi
                       <div class="card p-4 shadow-sm mb-3">
                         <h4 class="mb-3 text-primary">Survey Details</h4>
                         <div class="mb-3">
-                          <label class="form-label">Survey Title <span class="text-danger">*</span></label>
-                          <input type="text" name="survey_title" class="form-control" required>
+                          <label class="form-label">Survey Type <span class="text-danger">*</span></label>
+                          <select name="survey_source" class="form-control" id="survey-type-select" required>
+                            <option value="">-- Select Survey Type --</option>
+                            <option value="local">Local Survey</option>
+                            <option value="dhis2">DHIS2 Program/Dataset</option>
+                          </select>
                         </div>
+                        <!-- <div class="mb-3">
+                          <label class="form-label">Survey Title <span class="text-danger"></span></label>
+                          <input type="text" name="survey_title" class="form-control" required>
+                        </div> -->
                         <div class="mb-3">
                           <label class="form-label">Description</label>
                           <textarea name="survey_description" class="form-control" rows="2"></textarea>
                         </div>
-                        <div class="mb-3">
+                        <!-- <div class="mb-3">
                           <label class="form-label">Target Audience <span class="text-danger">*</span></label>
                           <select name="target_audience" class="form-control" required>
                             <option value="">-- Select Audience --</option>
@@ -1033,15 +1041,8 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 1 && $_GET['survey_source'] == 'dhi
                         <div class="mb-3">
                           <label class="form-label">Area</label>
                           <input type="text" name="area" class="form-control" placeholder="e.g. Region, District, Facility">
-                        </div>
-                        <div class="mb-3">
-                          <label class="form-label">Survey Type <span class="text-danger">*</span></label>
-                          <select name="survey_source" class="form-control" id="survey-type-select" required>
-                            <option value="">-- Select Survey Type --</option>
-                            <option value="local">Local Survey</option>
-                            <option value="dhis2">DHIS2 Program/Dataset</option>
-                          </select>
-                        </div>
+                        </div> -->
+                        
                       </div>
                       <div class="row" id="survey-type-buttons" style="display:none;">
                         <div class="col-md-6 mb-3">

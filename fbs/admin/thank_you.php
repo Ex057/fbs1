@@ -6,7 +6,7 @@ session_start();
 if (!isset($_SESSION['submitted_uid'])) {
     // Redirect to the form page if no submission is found
     // Consider redirecting back to the original survey if possible, otherwise a generic survey list
-    header("Location: survey_list.php"); // Assuming survey_list.php exists or adjust to your entry point
+    header("Location: survey.php"); // Assuming survey.php exists or adjust to your entry point
     exit;
 }
 
@@ -27,13 +27,17 @@ if ($conn->connect_error) {
 }
 
 // Get basic submission data
+// Using prepared statement for safety
 $stmt = $conn->prepare("
-    SELECT * FROM submission WHERE uid = ?
+    SELECT id, age, sex, period, service_unit_id, location_id, ownership_id, survey_id
+    FROM submission
+    WHERE uid = ?
 ");
 $stmt->bind_param("s", $uid);
 $stmt->execute();
 $result = $stmt->get_result();
 $submission = $result->fetch_assoc();
+$stmt->close(); // Close the statement after use
 
 // If no submission found with this UID
 if (!$submission) {
@@ -43,58 +47,97 @@ if (!$submission) {
 // IMPORTANT: Get survey_id directly from the submission if possible
 $surveyId = $submission['survey_id'] ?? $surveyIdFromSession;
 
-// Get facility name (always relevant for both types)
-$facilityId = $submission['location_id'];
-$facilityQuery = $conn->query("SELECT name FROM location WHERE id = $facilityId");
-$facility = $facilityQuery->fetch_assoc();
+// Initialize facility name to a default
+$facilityName = 'Not specified';
+$facilityId = $submission['location_id']; // Get location_id from submission
+
+// Conditionally fetch facility name ONLY if facilityId is not null
+if ($facilityId !== null) {
+    $stmt = $conn->prepare("SELECT name FROM location WHERE id = ?");
+    $stmt->bind_param("i", $facilityId);
+    $stmt->execute();
+    $facilityResult = $stmt->get_result();
+    $facility = $facilityResult->fetch_assoc();
+    $stmt->close();
+
+    if ($facility) {
+        $facilityName = $facility['name'];
+    }
+}
+
 
 // Check survey type before fetching service unit and ownership
 $surveyType = 'local'; // Default to local
 
 if ($surveyId) {
-    $surveyTypeQuery = $conn->query("SELECT type FROM survey WHERE id = $surveyId");
-    $surveyTypeRow = $surveyTypeQuery->fetch_assoc();
+    $stmt = $conn->prepare("SELECT type FROM survey WHERE id = ?");
+    $stmt->bind_param("i", $surveyId);
+    $stmt->execute();
+    $surveyTypeResult = $stmt->get_result();
+    $surveyTypeRow = $surveyTypeResult->fetch_assoc();
+    $stmt->close();
     if ($surveyTypeRow && isset($surveyTypeRow['type'])) {
         $surveyType = $surveyTypeRow['type'];
     }
 }
 
-$serviceUnit = null;
-$ownership = null;
-$age = $submission['age'] ?? 'Not specified'; // Assume age is collected by local
-$sex = $submission['sex'] ?? 'Not specified'; // Assume sex is collected by local
-$period = $submission['period'] ?? 'now'; // Assume period is collected by local
+$serviceUnitName = 'Not specified'; // Initialize to default
+$ownershipName = 'Not specified'; // Initialize to default
 
-// Only fetch these specific details if the survey type is 'local'
+$age = $submission['age'] ?? 'Not specified';
+$sex = $submission['sex'] ?? 'Not specified';
+$period = $submission['period'] ?? date('Y-m-d'); // Default to current date if not specified
+
+// Only fetch these specific details if the survey type is 'local' AND the IDs are not null
 if ($surveyType === 'local') {
     // Get service unit name
     $serviceUnitId = $submission['service_unit_id'] ?? null;
-    if ($serviceUnitId) {
-        $serviceUnitQuery = $conn->query("SELECT name FROM service_unit WHERE id = $serviceUnitId");
-        $serviceUnit = $serviceUnitQuery->fetch_assoc();
+    if ($serviceUnitId !== null) {
+        $stmt = $conn->prepare("SELECT name FROM service_unit WHERE id = ?");
+        $stmt->bind_param("i", $serviceUnitId);
+        $stmt->execute();
+        $serviceUnitResult = $stmt->get_result();
+        $serviceUnit = $serviceUnitResult->fetch_assoc();
+        $stmt->close();
+        if ($serviceUnit) {
+            $serviceUnitName = $serviceUnit['name'];
+        }
     }
 
     // Get ownership name
     $ownershipId = $submission['ownership_id'] ?? null;
-    if ($ownershipId) {
-        $ownershipQuery = $conn->query("SELECT name FROM owner WHERE id = $ownershipId");
-        $ownership = $ownershipQuery->fetch_assoc();
+    if ($ownershipId !== null) {
+        $stmt = $conn->prepare("SELECT name FROM owner WHERE id = ?");
+        $stmt->bind_param("i", $ownershipId);
+        $stmt->execute();
+        $ownershipResult = $stmt->get_result();
+        $ownership = $ownershipResult->fetch_assoc();
+        $stmt->close();
+        if ($ownership) {
+            $ownershipName = $ownership['name'];
+        }
     }
 }
 
 // Get responses
 $submissionId = $submission['id'];
-$responsesQuery = $conn->query("
+// Using prepared statement for responses as well
+$stmt = $conn->prepare("
     SELECT sr.question_id, sr.response_value, q.label
     FROM submission_response sr
     JOIN question q ON sr.question_id = q.id
-    WHERE sr.submission_id = $submissionId
+    WHERE sr.submission_id = ?
 ");
+$stmt->bind_param("i", $submissionId);
+$stmt->execute();
+$responsesResult = $stmt->get_result();
 
 $responses = [];
-while ($row = $responsesQuery->fetch_assoc()) {
+while ($row = $responsesResult->fetch_assoc()) {
     $responses[] = $row;
 }
+$stmt->close(); // Close the statement after use
+
 
 // Clear the session variable to prevent refreshing the page and resubmitting
 unset($_SESSION['submitted_uid']);
@@ -339,12 +382,12 @@ $conn->close();
                     </tr>
                     <tr>
                         <th>Facility</th>
-                        <td><?php echo htmlspecialchars($facility['name'] ?? 'Not specified'); ?></td>
+                        <td><?php echo htmlspecialchars($facilityName); ?></td>
                     </tr>
                     <?php if ($surveyType === 'local'): // Conditionally display for 'local' ?>
                         <tr id="serviceUnitRow">
                             <th>Service Unit</th>
-                            <td><?php echo htmlspecialchars($serviceUnit['name'] ?? 'Not specified'); ?></td>
+                            <td><?php echo htmlspecialchars($serviceUnitName); ?></td>
                         </tr>
                         <tr id="ageRow">
                             <th>Age</th>
@@ -360,7 +403,7 @@ $conn->close();
                         </tr>
                         <tr id="ownershipRow">
                             <th>Ownership</th>
-                            <td><?php echo htmlspecialchars($ownership['name'] ?? 'Not specified'); ?></td>
+                            <td><?php echo htmlspecialchars($ownershipName); ?></td>
                         </tr>
                     <?php endif; ?>
                 </table>

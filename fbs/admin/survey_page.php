@@ -171,10 +171,58 @@ if ($typeResult && $typeRow = $typeResult->fetch_assoc()) {
             height: 30px;
         }
 
+           /* Improved Pagination Controls Container */
+.pagination-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 18px;
+    margin: 28px auto 18px auto;
+    max-width: 340px;      /* Reduce container width */
+    width: 100%;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    padding: 12px 0;
+}
+
+/* Pagination Buttons */
+.pagination-controls button {
+    min-width: 100px;
+    padding: 10px 24px;
+    font-size: 1rem;
+    border: none;
+    border-radius: 6px;
+    background-color: #1976d2;
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.2s, box-shadow 0.2s;
+    box-shadow: 0 1px 3px rgba(25, 118, 210, 0.08);
+    outline: none;
+    margin: 0;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.pagination-controls button:disabled,
+.pagination-controls button[style*="display: none"] {
+    background-color: #bdbdbd;
+    color: #fff;
+    cursor: not-allowed;
+}
+
+.pagination-controls button:hover:not(:disabled):not([style*="display: none"]) {
+    background-color: #1565c0;
+}
+
+/* Remove left margin from submit button for perfect alignment */
+.pagination-controls #submit-button-final {
+    margin-left: 0 !important;
+}
     </style>
 </head>
 <body>
-    <div class="top-controls">
+    <!-- <div class="top-controls">
         <div class="language-switcher">
             <label for="languageSelect" data-translate="select_language">
                 <?php echo $translations['select_language'] ?? 'Select Language'; ?>
@@ -203,15 +251,18 @@ if ($typeResult && $typeRow = $typeResult->fetch_assoc()) {
                 <img src="../print.jpg" alt="Print">
             </button>
         </div>
-    </div>
+    </div> -->
 
-    <div class="container" id="form-content">
+  <div class="container" id="form-content">
 
         <div class="header-section" id="logo-section">
             <div class="logo-container">
                 <img id="moh-logo" src="asets/asets/img/loog.jpg" alt="Ministry of Health Logo">
             </div>
-            </div>
+            <div class="title hidden-element" id="republic-title">THE REPUBLIC OF UGANDA</div>
+            <div class="subtitle hidden-element" id="ministry-subtitle">MINISTRY OF HEALTH</div>
+            
+        </div>
 
         <div class="flag-bar" id="flag-bar">
             <div class="flag-black" id="flag-black-color"></div>
@@ -220,7 +271,7 @@ if ($typeResult && $typeRow = $typeResult->fetch_assoc()) {
         </div>
 
         <h2 id="survey-title" data-translate="title"><?php echo $defaultSurveyTitle; ?></h2>
-        <h3 id="survey-subtitle" data-translate="client_satisfaction_tool"><?php echo $translations['client_satisfaction_tool'] ?? 'CLIENT SATISFACTION FEEDBACK TOOL'; ?></h3>
+        <h3 id="survey-subtitle" data-translate="client_satisfaction_tool"><?php echo $translations['client_satisfaction_tool'] ?? 'USER FEEDBACK TOOL'; ?></h3>
         <p class="subheading" id="survey-subheading" data-translate="subheading">
             <?php echo $translations['subheading'] ?? 'This tool is used to obtain clients\' feedback about their experience with the services and promote quality improvement, accountability, and transparency within the healthcare system.'; ?>
         </p>
@@ -233,7 +284,7 @@ if ($typeResult && $typeRow = $typeResult->fetch_assoc()) {
                 <div class="form-group">
                     <label for="facility-search">Health Facility:</label>
                     <div class="searchable-dropdown">
-                        <input type="text" id="facility-search" placeholder="Type to search facilities..." autocomplete="off" required>
+                        <input type="text" id="facility-search" placeholder="Type to search facilities..." autocomplete="off">
                         <div class="dropdown-results" id="facility-results"></div>
                         <input type="hidden" id="facility_id" name="facility_id">
                     </div>
@@ -255,7 +306,7 @@ if ($typeResult && $typeRow = $typeResult->fetch_assoc()) {
                 <div class="location-row" id="location-row-general">
                     <div class="form-group">
                         <label for="serviceUnit" data-translate="service_unit"><?php echo $translations['service_unit'] ?? 'Service Unit'; ?>:</label>
-                        <select id="serviceUnit" name="serviceUnit" required>
+                        <select id="serviceUnit" name="serviceUnit">
                             <option value="">none selected</option>
                         </select>
                     </div>
@@ -277,7 +328,6 @@ if ($typeResult && $typeRow = $typeResult->fetch_assoc()) {
                             type="date"
                             id="reporting_period"
                             name="reporting_period"
-                            required
                             value="<?php echo date('Y-m-d'); ?>"
                             readonly
                             style="background-color: #f5f5f5; cursor: not-allowed;"
@@ -294,7 +344,6 @@ if ($typeResult && $typeRow = $typeResult->fetch_assoc()) {
                             min="14"
                             max="99"
                             onblur="this.value = Math.max(14, Math.min(99, parseInt(this.value) || ''))"
-                            required
                             oninvalid="this.setCustomValidity('Please enter an age between 14 and 99')"
                             oninput="this.setCustomValidity('')"
                         >
@@ -304,77 +353,87 @@ if ($typeResult && $typeRow = $typeResult->fetch_assoc()) {
                 <div class="radio-group" id="ownership-section">
                     <label for="ownership" class="radio-label" data-translate="ownership"><?php echo $translations['ownership'] ?? 'Ownership'; ?></label>
                     <div class="radio-options" id="ownership-options">
-                        </div>
+                    </div>
                 </div>
                 <p id="rating-instruction-1" data-translate="rating_instruction"><?php echo $translations['rating_instruction'] ?? '1. Please rate each of the following parameters according to your experience today on a scale of 1 to 4.'; ?></p>
                 <p id="rating-instruction-2" data-translate="rating_scale" style="color: red; font-size: 12px; font-style: italic;"><?php echo $translations['rating_scale'] ?? 'where \'0\' means Poor, \'1\' Fair, \'2\' Good and \'3\' Excellent'; ?></p>
 
             <?php endif; ?>
 
-            <?php foreach ($questionsArray as $index => $question): ?>
-                <div class="form-group">
-                    <div class="radio-label">
-                        <span class="question-number"><?php echo ($index + 1) . '.'; ?></span>
-                        <?php echo htmlspecialchars($question['label']); ?>
-                    </div>
-
-                    <?php if ($question['question_type'] == 'radio'): ?>
-                     <div class="radio-options" style="display: flex; flex-wrap: wrap; gap: 12px;">
-                            <?php foreach ($question['options'] as $option): ?>
-                               <div class="radio-option" style="flex: 1 1 220px; min-width: 180px;">
-                                    <input type="radio"
-                                           id="option_<?php echo $question['id']; ?>_<?php echo $option['id']; ?>"
-                                           name="question_<?php echo $question['id']; ?>"
-                                           value="<?php echo htmlspecialchars($option['option_value']); ?>">
-                                    <label for="option_<?php echo $question['id']; ?>_<?php echo $option['id']; ?>">
-                                        <?php echo htmlspecialchars($option['option_value']); ?>
-                                    </label>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php elseif ($question['question_type'] == 'checkbox'): ?>
-                        <div class="radio-options">
-                           <div class="checkbox-options" style="display: flex; flex-wrap: wrap; gap: 12px;">
-                            <?php foreach ($question['options'] as $option): ?>
-                                <div class="checkbox-option" style="flex: 1 1 220px; min-width: 180px;">
-                                    <input type="checkbox"
-                                           id="option_<?php echo $question['id']; ?>_<?php echo $option['id']; ?>"
-                                           name="question_<?php echo $question['id']; ?>[]"
-                                           value="<?php echo htmlspecialchars($option['option_value']); ?>">
-                                    <label for="option_<?php echo $question['id']; ?>_<?php echo $option['id']; ?>">
-                                        <?php echo htmlspecialchars($option['option_value']); ?>
-                                    </label>
-                                </div>
-                            <?php endforeach; ?>
-                       
-                            
-                        </div>
-                    <?php elseif ($question['question_type'] == 'select'): ?>
-                        <select class="form-control"   name="question_<?php echo $question['id']; ?>" style="width: 60%;">
-                            <option value="">Select an option</option>
-                            <?php foreach ($question['options'] as $option): ?>
-                                <option value="<?php echo htmlspecialchars($option['option_value']); ?>">
-                                    <?php echo htmlspecialchars($option['option_value']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    <?php elseif ($question['question_type'] == 'text'): ?>
-                        <input type="text"
-                               class="form-control"
-                               name="question_<?php echo $question['id']; ?>">
-
-
-                    <?php elseif ($question['question_type'] == 'textarea'): ?>
-                        <textarea class="form-control"
-                                  name="question_<?php echo $question['id']; ?>"
-                                  rows="3"
-                                  style="width: 80%;"></textarea>
-
+           <?php foreach ($questionsArray as $index => $question): ?>
+            <div class="form-group survey-question"
+                 data-question-index="<?php echo $index; ?>"
+                 style="display: none;">
+                <div class="radio-label">
+                    <span class="question-number"><?php echo ($index + 1) . '.'; ?></span>
+                    <?php echo htmlspecialchars($question['label']); ?>
+                    <?php if ($question['is_required']): ?>
+                        <span class="required-indicator" style="color: red;">*</span>
                     <?php endif; ?>
                 </div>
-            <?php endforeach; ?>
+                <!-- ... (existing question type rendering code) -->
+                <?php if ($question['question_type'] == 'radio'): ?>
+                    <div class="radio-options" style="display: flex; flex-wrap: wrap; gap: 12px;">
+                        <?php foreach ($question['options'] as $option): ?>
+                           <div class="radio-option" style="flex: 1 1 220px; min-width: 180px;">
+                                <input type="radio"
+                                       id="option_<?php echo $question['id']; ?>_<?php echo $option['id']; ?>"
+                                       name="question_<?php echo $question['id']; ?>"
+                                       value="<?php echo htmlspecialchars($option['option_value']); ?>"
+                                       <?php echo $question['is_required'] ? 'required' : ''; ?>>
+                                <label for="option_<?php echo $question['id']; ?>_<?php echo $option['id']; ?>">
+                                    <?php echo htmlspecialchars($option['option_value']); ?>
+                                </label>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php elseif ($question['question_type'] == 'checkbox'): ?>
+                    <div class="radio-options">
+                       <div class="checkbox-options" style="display: flex; flex-wrap: wrap; gap: 12px;">
+                        <?php foreach ($question['options'] as $option): ?>
+                            <div class="checkbox-option" style="flex: 1 1 220px; min-width: 180px;">
+                                <input type="checkbox"
+                                       id="option_<?php echo $question['id']; ?>_<?php echo $option['id']; ?>"
+                                       name="question_<?php echo $question['id']; ?>[]"
+                                       value="<?php echo htmlspecialchars($option['option_value']); ?>"
+                                       <?php echo $question['is_required'] ? 'required' : ''; ?>>
+                                <label for="option_<?php echo $question['id']; ?>_<?php echo $option['id']; ?>">
+                                    <?php echo htmlspecialchars($option['option_value']); ?>
+                                </label>
+                            </div>
+                        <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php elseif ($question['question_type'] == 'select'): ?>
+                    <select class="form-control" name="question_<?php echo $question['id']; ?>" style="width: 60%;" <?php echo $question['is_required'] ? 'required' : ''; ?>>
+                        <option value="">Select an option</option>
+                        <?php foreach ($question['options'] as $option): ?>
+                            <option value="<?php echo htmlspecialchars($option['option_value']); ?>">
+                                <?php echo htmlspecialchars($option['option_value']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                <?php elseif ($question['question_type'] == 'text'): ?>
+                    <input type="text"
+                           class="form-control"
+                           name="question_<?php echo $question['id']; ?>"
+                           <?php echo $question['is_required'] ? 'required' : ''; ?>>
+                <?php elseif ($question['question_type'] == 'textarea'): ?>
+                    <textarea class="form-control"
+                              name="question_<?php echo $question['id']; ?>"
+                              rows="3"
+                              style="width: 80%;"
+                              <?php echo $question['is_required'] ? 'required' : ''; ?>></textarea>
+                <?php endif; ?>
+            </div>
+        <?php endforeach; ?>
+    </div>
 
-            <button type="submit" id="submit-button-final" data-translate="submit"><?php echo $translations['submit'] ?? 'Submit'; ?></button>
+  <div class="pagination-controls">
+    <button type="button" id="prev-page-btn" style="display: none;">Back</button>
+    <button type="button" id="next-page-btn">Next</button>
+    <button type="submit" id="submit-button-final" style="display: none;"><?php echo $translations['submit'] ?? 'Submit Feedback'; ?></button>
+</div>
         </form>
     </div>
 
@@ -532,24 +591,131 @@ if ($typeResult && $typeRow = $typeResult->fetch_assoc()) {
 
         // Form validation function
         function validateForm() {
-            // Your existing validation logic here
+            // Check only for required fields that are not hidden by preview settings.
+            // The `required` attribute on HTML elements will handle most of the validation automatically.
+            // This function should focus on custom logic or fields where 'required' isn't sufficient.
+
+            // The 'facility_id' hidden input should *only* be required if the 'facility-section' is visible.
+            const facilitySectionVisible = !facilitySectionElement.classList.contains('hidden-element');
             const facilityId = document.getElementById('facility_id').value;
-            if (!facilityId) {
+
+            if (facilitySectionVisible && !facilityId) {
                 alert('Please select a Health Facility.');
+                // Focus on the search input to guide the user
+                document.getElementById('facility-search').focus();
                 return false;
             }
-            // Add other required field checks here (e.g., for age, service unit if they become hidden and are required)
-            // You might need to adjust validation based on what elements are visible.
-            // For example:
-            // if (!locationRowGeneralElement.classList.contains('hidden-element')) {
-            //     if (!document.getElementById('serviceUnit').value) {
-            //         alert('Please select a Service Unit.');
-            //         return false;
-            //     }
-            // }
 
-            return true; // Return true to submit the form, false to prevent submission
+            // Since we've removed 'required' from serviceUnit and age,
+            // we no longer need explicit checks for them here UNLESS
+            // you want to enforce them conditionally based on other logic.
+            // If they are truly optional, no JS check is needed here.
+
+            // For dynamic questions, the 'required' attribute is now set based on `$question['is_required']`.
+            // The browser's native form validation will handle these.
+            // If you need custom validation for dynamic questions, you'd iterate through them.
+
+            return true; // Allow form submission if all checks pass
         }
+        
+           // Pagination logic for survey questions
+    const QUESTIONS_PER_PAGE = 10;
+    const questions = Array.from(document.querySelectorAll('.survey-question'));
+    const totalQuestions = questions.length;
+    const totalPages = Math.ceil(totalQuestions / QUESTIONS_PER_PAGE);
+
+    let currentPage = 1;
+
+    const prevBtn = document.getElementById('prev-page-btn');
+    const nextBtn = document.getElementById('next-page-btn');
+    const submitBtn = document.getElementById('submit-button-final');
+
+    function showPage(page) {
+        // Hide all questions
+        questions.forEach(q => q.style.display = 'none');
+        // Show only questions for this page
+        const start = (page - 1) * QUESTIONS_PER_PAGE;
+        const end = Math.min(start + QUESTIONS_PER_PAGE, totalQuestions);
+        for (let i = start; i < end; i++) {
+            questions[i].style.display = '';
+        }
+
+        // Update button visibility
+        prevBtn.style.display = (page > 1) ? '' : 'none';
+        nextBtn.style.display = (page < totalPages) ? '' : 'none';
+        submitBtn.style.display = (page === totalPages) ? '' : 'none';
+    }
+
+    prevBtn.addEventListener('click', function() {
+        if (currentPage > 1) {
+            currentPage--;
+            showPage(currentPage);
+            window.scrollTo(0, 0);
+        }
+    });
+
+    nextBtn.addEventListener('click', function() {
+        // Optionally, validate current page before moving forward
+        if (!validateCurrentPage()) return;
+        if (currentPage < totalPages) {
+            currentPage++;
+            showPage(currentPage);
+            window.scrollTo(0, 0);
+        }
+    });
+
+    function validateCurrentPage() {
+        // Validate only visible required fields
+        const visibleQuestions = questions.filter(q => q.style.display !== 'none');
+        for (const q of visibleQuestions) {
+            const requiredInputs = q.querySelectorAll('[required]');
+            for (const input of requiredInputs) {
+                if (input.type === 'radio' || input.type === 'checkbox') {
+                    // For radio/checkbox, check if any in the group is checked
+                    const name = input.name;
+                    const group = q.querySelectorAll(`[name="${name}"]`);
+                    if (![...group].some(i => i.checked)) {
+                        alert('Please answer all required questions on this page.');
+                        input.focus();
+                        return false;
+                    }
+                } else if (!input.value) {
+                    alert('Please answer all required questions on this page.');
+                    input.focus();
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    // On form submit, validate all questions (not just visible)
+    document.querySelector('form').addEventListener('submit', function(e) {
+        for (const q of questions) {
+            const requiredInputs = q.querySelectorAll('[required]');
+            for (const input of requiredInputs) {
+                if (input.type === 'radio' || input.type === 'checkbox') {
+                    const name = input.name;
+                    const group = q.querySelectorAll(`[name="${name}"]`);
+                    if (![...group].some(i => i.checked)) {
+                        alert('Please answer all required questions.');
+                        input.focus();
+                        e.preventDefault();
+                        return false;
+                    }
+                } else if (!input.value) {
+                    alert('Please answer all required questions.');
+                    input.focus();
+                    e.preventDefault();
+                    return false;
+                }
+            }
+        }
+        return true;
+    });
+
+    // Show the first page on load
+    showPage(currentPage);
 
     </script>
 
