@@ -191,7 +191,7 @@ $surveys = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </div>
     </main>
 
-    <?php include 'components/fixednav.php'; ?>
+    <!-- <?php include 'components/fixednav.php'; ?> -->
     
     <!-- Core JS Files -->
     <script src="argon-dashboard-master/assets/js/core/popper.min.js"></script>

@@ -350,8 +350,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </main>
 
-   
-    <?php include 'components/fixednav.php'; ?>
+<!--    
+    <?php include 'components/fixednav.php'; ?> -->
     
     <!-- Argon Dashboard JS -->
     <script src="argon-dashboard-master/assets/js/core/popper.min.js"></script>

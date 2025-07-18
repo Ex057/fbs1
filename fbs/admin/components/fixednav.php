@@ -1,4 +1,4 @@
-<div class="fixed-plugin">
+<!-- <div class="fixed-plugin">
     <a class="fixed-plugin-button text-dark position-fixed px-3 py-2" id="darkModeToggle">
         <i class="fas fa-moon py-2"></i>
     </a>
@@ -136,4 +136,4 @@ document.addEventListener('DOMContentLoaded', function() {
     body.dark-mode .fixed-plugin-button:hover {
         background: rgba(0, 0, 0, 0.3);
     }
-</style>
+</style> -->

@@ -85,6 +85,7 @@ if (!$surveyId) {
     <link href="argon-dashboard-master/assets/css/sweetalert2.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+
     <style>
         body {
     overflow-x: hidden;
@@ -113,7 +114,7 @@ if (!$surveyId) {
         .table thead th {
             font-size: 0.75rem;
             letter-spacing: 0.5px;
-            text-transform: uppercase;
+            text-transform: uppercase; 
             background-color: #f8f9fa;
         }
         .table tbody tr {
@@ -222,23 +223,34 @@ if (!$surveyId) {
                                         <button class="btn bg-gradient-secondary mb-0 me-2" onclick="goBack()">
                                             <i class="fas fa-arrow-left me-2"></i> Back to Surveys
                                         </button>
-                                        <div class="btn-group">
-                                            <button type="button" class="btn bg-gradient-info mb-0 dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
-                                                <i class="fas fa-sort me-2"></i> Sort By
-                                            </button>
-                                    <!-- Add this right after the Sort By button dropdown in records.php -->
-                                <div class="btn-group ms-2">
-                                    <button type="button" class="btn bg-gradient-success mb-0 dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <div class="d-flex align-items-center" style="gap: 1rem;">
+                                        <!-- Sort By Dropdown -->
+                                        <div class="dropdown">
+                                        <button class="btn bg-gradient-info mb-0 dropdown-toggle" type="button" id="sortDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="fas fa-sort me-2"></i> Sort By
+                                        </button>
+                                        <ul class="dropdown-menu" aria-labelledby="sortDropdown">
+                                        <li><a class="dropdown-item" href="?survey_id=<?= $surveyId ?>&sort=created_desc">Newest First</a></li>
+                                        <li><a class="dropdown-item" href="?survey_id=<?= $surveyId ?>&sort=created_asc">Oldest First</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item" href="?survey_id=<?= $surveyId ?>&sort=uid_asc">UID (A-Z)</a></li>
+                                        <li><a class="dropdown-item" href="?survey_id=<?= $surveyId ?>&sort=uid_desc">UID (Z-A)</a></li>
+                                        </ul>
+                                        </div>
+                                        <!-- Download Dropdown -->
+                                        <div class="dropdown">
+                                        <button class="btn bg-gradient-success mb-0 dropdown-toggle" type="button" id="downloadDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                                         <i class="fas fa-download me-2"></i> Download
-                                    </button>
-                                                                    <ul class="dropdown-menu">
-                                    <li><a class="dropdown-item" href="javascript:;" onclick="downloadData('pdf')">PDF Format</a></li>
-                                    <li><a class="dropdown-item" href="javascript:;" onclick="downloadData('csv')">CSV Format</a></li>
-                                    <li><a class="dropdown-item" href="javascript:;" onclick="downloadData('excel')">Excel Format</a></li>
-                                    <li><a class="dropdown-item" href="javascript:;" onclick="downloadData('json')">JSON Format</a></li>
-                                    <!-- <li><a class="dropdown-item" href="javascript:;" onclick="downloadData('xml')">XML Format</a></li>
-                                    <li><a class="dropdown-item" href="javascript:;" onclick="downloadData('html')">HTML Format</a></li> -->
-                                </ul>
+                                        </button>
+                                        <ul class="dropdown-menu" aria-labelledby="downloadDropdown">
+                                        <li><button type="button" class="dropdown-item" onclick="downloadData('pdf')">PDF Format</button></li>
+                                        <li><button type="button" class="dropdown-item" onclick="downloadData('csv')">CSV Format</button></li>
+                                        <li><button type="button" class="dropdown-item" onclick="downloadData('excel')">Excel Format</button></li>
+                                        <li><button type="button" class="dropdown-item" onclick="downloadData('json')">JSON Format</button></li>
+                                        <!-- <li><button type="button" class="dropdown-item" onclick="downloadData('xml')">XML Format</button></li>
+                                        <li><button type="button" class="dropdown-item" onclick="downloadData('html')">HTML Format</button></li> -->
+                                        </ul>
+                                        </div>
                                 </div>
 
                                             <ul class="dropdown-menu">
@@ -332,11 +344,13 @@ if (!$surveyId) {
         </div>
     </div>
 
-    <?php include 'components/fixednav.php'; ?>
+    <!-- <?php include 'components/fixednav.php'; ?> -->
     
     <!-- Core JS Files -->
+     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="argon-dashboard-master/assets/js/core/popper.min.js"></script>
     <script src="argon-dashboard-master/assets/js/core/bootstrap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="argon-dashboard-master/assets/js/plugins/perfect-scrollbar.min.js"></script>
     <script src="argon-dashboard-master/assets/js/plugins/smooth-scrollbar.min.js"></script>
     <script src="argon-dashboard-master/assets/js/plugins/sweetalert2.all.min.js"></script>
@@ -349,9 +363,14 @@ if (!$surveyId) {
         }
 
         // Sidebar toggle functionality
-        document.getElementById('iconNavbarSidenav').addEventListener('click', function() {
-            document.body.classList.toggle('g-sidenav-pinned');
-            document.body.classList.toggle('g-sidenav-hidden');
+       document.addEventListener('DOMContentLoaded', function() {
+            var icon = document.getElementById('iconNavbarSidenav');
+            if (icon) {
+                icon.addEventListener('click', function() {
+                    document.body.classList.toggle('g-sidenav-pinned');
+                    document.body.classList.toggle('g-sidenav-hidden');
+                });
+            }
         });
 
         // Ensure sidebar is visible on page load
@@ -418,7 +437,7 @@ if (!$surveyId) {
 function downloadData(format) {
     const surveyId = <?php echo $surveyId; ?>;
     const sortBy = '<?php echo $sortBy ?? "created_desc"; ?>';
-    
+
     // Show loading indicator
     Swal.fire({
         title: 'Preparing Download',
@@ -429,36 +448,36 @@ function downloadData(format) {
         },
         allowOutsideClick: false
     });
-    
-    // Create and submit a form to trigger the download
+
+    // Create a new form
     const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = 'generate_download.php';
-    
+    form.method = 'POST'; // Crucial: Use POST method for sending data
+    form.action = 'generate_download.php'; // The target PHP script
+
     // Add survey ID parameter
     const surveyIdInput = document.createElement('input');
     surveyIdInput.type = 'hidden';
     surveyIdInput.name = 'survey_id';
     surveyIdInput.value = surveyId;
     form.appendChild(surveyIdInput);
-    
+
     // Add sort parameter
     const sortInput = document.createElement('input');
     sortInput.type = 'hidden';
     sortInput.name = 'sort';
     sortInput.value = sortBy;
     form.appendChild(sortInput);
-    
+
     // Add format parameter
     const formatInput = document.createElement('input');
     formatInput.type = 'hidden';
     formatInput.name = 'format';
     formatInput.value = format;
     form.appendChild(formatInput);
-    
-    document.body.appendChild(form);
-    form.submit();
-    
+
+    document.body.appendChild(form); // Append the form to the body
+    form.submit(); // Submit the form
+
     // Close the loading dialog after a short delay
     setTimeout(() => {
         Swal.close();

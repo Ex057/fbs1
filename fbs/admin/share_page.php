@@ -1,15 +1,7 @@
 <?php
 session_start();
 
-// Get the survey URL and survey_id from the URL parameters
-$surveyUrl = $_GET['url'] ?? '';
-$surveyId = $_GET['survey_id'] ?? null; // Explicitly passed from preview_form.php
-
-// Fallback for default survey title if no custom title is found in localStorage
-// or if surveyId is missing.
-$defaultSurveyTitle = 'Ministry of Health Client Satisfaction Feedback Tool';
-
-// Database connection for a more robust fallback for survey name
+// Database connection using mysqli
 $servername = "localhost";
 $username = "root";
 $password = "root";
@@ -18,32 +10,117 @@ $dbname = "fbtv3";
 $conn = new mysqli($servername, $username, $password, $dbname);
 
 if ($conn->connect_error) {
-    // Log error, but allow the page to load with default title
+    // Log error, but allow the page to load with default values
     error_log("Database Connection failed in share_page.php: " . $conn->connect_error);
-} else {
-    if ($surveyId) {
-        $stmt = $conn->prepare("SELECT name FROM survey WHERE id = ?");
-        $stmt->bind_param("i", $surveyId);
-        $stmt->execute();
-        $result = $stmt->get_result();
+}
+
+// Get survey_id from the URL
+$surveyId = $_GET['survey_id'] ?? null;
+$surveyUrl = $_GET['url'] ?? ''; // Get the survey URL to embed in QR code
+
+if (!$surveyId) {
+    die("Survey ID is missing.");
+}
+
+// Fetch survey details (just 'name' for default title)
+$defaultSurveyTitle = 'Ministry of Health Client Satisfaction Feedback Tool';
+if ($conn->connect_error === null) { // Only attempt if DB connection is successful
+    $surveyStmt = $conn->prepare("SELECT name FROM survey WHERE id = ?");
+    if ($surveyStmt) {
+        $surveyStmt->bind_param("i", $surveyId);
+        $surveyStmt->execute();
+        $result = $surveyStmt->get_result();
         if ($row = $result->fetch_assoc()) {
             $defaultSurveyTitle = htmlspecialchars($row['name']);
         }
-        $stmt->close();
+        $surveyStmt->close();
     }
+}
+
+
+// Fetch survey settings from the database
+$surveySettings = [];
+if ($conn->connect_error === null) { // Only attempt if DB connection is successful
+    $settingsStmt = $conn->prepare("SELECT * FROM survey_settings WHERE survey_id = ?");
+    if ($settingsStmt) {
+        $settingsStmt->bind_param("i", $surveyId);
+        $settingsStmt->execute();
+        $settingsResult = $settingsStmt->get_result();
+        $existingSettings = $settingsResult->fetch_assoc();
+
+        if ($existingSettings) {
+            $surveySettings = $existingSettings;
+        } else {
+            // Fallback to hardcoded defaults if no settings found (should be rare)
+            $surveySettings = [
+                'logo_path' => 'asets/asets/img/loog.jpg',
+                'show_logo' => 1,
+                'flag_black_color' => '#000000', // Default colors for share page too
+                'flag_yellow_color' => '#FFCE00',
+                'flag_red_color' => '#FF0000',
+                'show_flag_bar' => 1,
+                'republic_title_text' => 'THE REPUBLIC OF UGANDA',
+                'show_republic_title_share' => 1,
+                'ministry_subtitle_text' => 'MINISTRY OF HEALTH',
+                'show_ministry_subtitle_share' => 1,
+                'qr_instructions_text' => 'Scan this QR Code to Give Your Feedback on Services Received',
+                'show_qr_instructions_share' => 1,
+                'footer_note_text' => 'Thank you for helping us improve our services.',
+                'show_footer_note_share' => 1,
+                'title_text' => $defaultSurveyTitle, // Use default survey title if no custom title in settings
+            ];
+        }
+        $settingsStmt->close();
+    }
+} else { // If DB connection failed, use basic defaults
+    $surveySettings = [
+        'logo_path' => 'asets/asets/img/loog.jpg',
+        'show_logo' => 1,
+        'flag_black_color' => '#000000',
+        'flag_yellow_color' => '#FFCE00',
+        'flag_red_color' => '#FF0000',
+        'show_flag_bar' => 1,
+        'republic_title_text' => 'THE REPUBLIC OF UGANDA',
+        'show_republic_title_share' => 1,
+        'ministry_subtitle_text' => 'MINISTRY OF HEALTH',
+        'show_ministry_subtitle_share' => 1,
+        'qr_instructions_text' => 'Scan this QR Code to Give Your Feedback on Services Received',
+        'show_qr_instructions_share' => 1,
+        'footer_note_text' => 'Thank you for helping us improve our services.',
+        'show_footer_note_share' => 1,
+        'title_text' => $defaultSurveyTitle,
+    ];
+}
+// Close the connection after all fetches are done
+if ($conn->connect_error === null) {
     $conn->close();
 }
+
+
+// // --- DEBUGGING START ---
+// echo '<pre style="background: lightblue; padding: 10px; border: 1px solid darkblue;">';
+// echo 'DEBUGGING $surveySettings in share_page.php for survey_id=' . $surveyId . ':<br>';
+// print_r($surveySettings);
+// echo '</pre>';
+// // --- DEBUGGING END ---
+
+
+// The URL for the QR code generation
+// Use the URL passed from preview_form.php, or construct it if not provided
+$qrUrl = $surveyUrl ? $surveyUrl : (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://$_SERVER[HTTP_HOST]/fbs/admin/survey_page.php?survey_id=" . $surveyId;
+
+// Use a QR code generation library (e.g., qrcodejs on client-side)
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $defaultSurveyTitle; ?></title>
+    <title>Share Survey: <?php echo htmlspecialchars($surveySettings['title_text'] ?? $defaultSurveyTitle); ?></title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        /* Your existing CSS here */
+        /* Your existing CSS here (copied from your provided code) */
         :root {
             --primary-blue: #007bff;
             --dark-blue: #0056b3;
@@ -67,6 +144,7 @@ if ($conn->connect_error) {
             color: var(--text-color-dark);
             line-height: 1.6;
         }
+        
 
         .feedback-container {
             background: white;
@@ -291,28 +369,30 @@ if ($conn->connect_error) {
 </head>
 <body>
     <div class="feedback-container">
-        <div class="header-section">
-            <div class="logo-container">
-                <img id="moh-logo" src="argon-dashboard-master/assets/img/loog.jpg" alt="Ministry of Health Logo" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjAiIGhlaWdodD0iMTIwIiB2aWV3Qm94PSIwIDAgMjAwIDIwMCI+PHJlY3Qgd2lkdGg9IjIwMCIgaGVpZ2h0PSIyMDAiIGZpbGw9IiNlZWVlZWUiLz48dGV4dCB4PSIxMDAiIHk9IjEwMCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE2IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBhbGlnbm1lbnQtYmFzZWxpbmU9Im1pZGRsZSIgZmlsbD0iIzY2NiI+SW1hZ2UgTm90IEZvdW5kPC90ZXh0Pjwvc3ZnP+'">
+        <div class="header-section" id="share-header-section">
+            <div class="logo-container" style="display: <?php echo ($surveySettings['show_logo'] ?? true) ? 'flex' : 'none'; ?>;">
+                <img id="moh-logo" src="<?php echo htmlspecialchars($surveySettings['logo_path'] ?? 'asets/asets/img/loog.jpg'); ?>" alt="Ministry of Health Logo">
             </div>
-            <div class="title-uganda" id="republic-title-share">THE REPUBLIC OF UGANDA</div>
-            <div class="subtitle-moh" id="ministry-subtitle-share">MINISTRY OF HEALTH</div>
+            <div class="title-uganda" id="republic-title-share" style="display: <?php echo ($surveySettings['show_republic_title_share'] ?? true) ? 'block' : 'none'; ?>;"><?php echo htmlspecialchars($surveySettings['republic_title_text'] ?? 'THE REPUBLIC OF UGANDA'); ?></div>
+            <div class="subtitle-moh" id="ministry-subtitle-share" style="display: <?php echo ($surveySettings['show_ministry_subtitle_share'] ?? true) ? 'block' : 'none'; ?>;"><?php echo htmlspecialchars($surveySettings['ministry_subtitle_text'] ?? 'MINISTRY OF HEALTH'); ?></div>
         </div>
 
-        <div class="flag-bar" id="flag-bar-share">
-            <div class="flag-black" id="flag-black-color-share"></div>
-            <div class="flag-yellow" id="flag-yellow-color-share"></div>
-            <div class="flag-red" id="flag-red-color-share"></div>
+        <div class="flag-bar" id="flag-bar-share" style="display: <?php echo ($surveySettings['show_flag_bar'] ?? true) ? 'flex' : 'none'; ?>;">
+            <div class="flag-black" style="background-color: <?php echo htmlspecialchars($surveySettings['flag_black_color'] ?? '#000000'); ?>;"></div>
+            <div class="flag-yellow" style="background-color: <?php echo htmlspecialchars($surveySettings['flag_yellow_color'] ?? '#FFCE00'); ?>;"></div>
+            <div class="flag-red" style="background-color: <?php echo htmlspecialchars($surveySettings['flag_red_color'] ?? '#FF0000'); ?>;"></div>
         </div>
+
+        <h1><?php echo htmlspecialchars($surveySettings['title_text'] ?? $defaultSurveyTitle); ?></h1>
 
         <div class="qr-section">
             <div class="qr-code-container">
                 <div id="qr-code"></div>
             </div>
 
-            <div class="instructions" id="qr-instructions-text">
+            <div class="instructions" id="qr-instructions-text" style="display: <?php echo ($surveySettings['show_qr_instructions_share'] ?? true) ? 'flex' : 'none'; ?>;">
                 <i class="fas fa-qrcode icon"></i>
-                <span>Scan this QR Code to Give Your Feedback<br>on Services Received</span>
+                <span><?php echo htmlspecialchars($surveySettings['qr_instructions_text'] ?? 'Scan this QR Code to Give Your Feedback<br>on Services Received'); ?></span>
             </div>
 
             <button class="download-button" onclick="downloadPage()">
@@ -320,40 +400,24 @@ if ($conn->connect_error) {
             </button>
         </div>
 
-        <div class="footer-note" id="footer-note-text">
-            Thank you for helping us improve our services.
+        <div class="footer-note" id="footer-note-text" style="display: <?php echo ($surveySettings['show_footer_note_share'] ?? true) ? 'block' : 'none'; ?>;">
+            <?php echo htmlspecialchars($surveySettings['footer_note_text'] ?? 'Thank you for helping us improve our services.'); ?>
         </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script>
-        // --- Get Survey ID and URL ---
-        const urlParams = new URLSearchParams(window.location.search);
-        const currentSurveyId = urlParams.get('survey_id'); // THIS IS THE KEY LINE
-        const passedSurveyUrl = urlParams.get('url'); // This is the survey_page.php URL for QR code
-
-        // Default QR code URL (important for when settings are loaded but no explicit URL is given yet)
-        // Ensure the QR code URL is correctly constructed using the currentSurveyId
-        const qrCodeUrl = passedSurveyUrl || `<?php echo (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://$_SERVER[HTTP_HOST]"; ?>/qpv3/admin/survey_page.php?survey_id=${currentSurveyId}`;
-
-
-        // --- Element References ---
-        const mohLogo = document.getElementById('moh-logo');
-        const republicTitleElement = document.getElementById('republic-title-share');
-        const ministrySubtitleElement = document.getElementById('ministry-subtitle-share');
-        const flagBarElement = document.getElementById('flag-bar-share');
-        const flagBlackElement = document.getElementById('flag-black-color-share');
-        const flagYellowElement = document.getElementById('flag-yellow-color-share');
-        const flagRedElement = document.getElementById('flag-red-color-share');
-        const qrInstructionsElement = document.getElementById('qr-instructions-text');
-        const qrInstructionsSpan = qrInstructionsElement.querySelector('span'); // The text within the instructions
-        const footerNoteElement = document.getElementById('footer-note-text');
+        // Data passed from PHP
+        const phpSurveyId = <?php echo json_encode($surveyId); ?>;
+        const phpSurveyUrl = <?php echo json_encode($qrUrl); ?>; // This is the URL for the QR code
+        const phpSurveySettings = <?php echo json_encode($surveySettings); ?>; // Pass all settings for download function
 
         document.addEventListener('DOMContentLoaded', function() {
-            // --- Generate QR code ---
-            if (qrCodeUrl && document.getElementById('qr-code')) {
+            // Generate QR code
+            if (phpSurveyUrl && document.getElementById('qr-code')) {
                 new QRCode(document.getElementById('qr-code'), {
-                    text: qrCodeUrl,
+                    text: phpSurveyUrl,
                     width: 200,
                     height: 200,
                     colorDark: "#000000",
@@ -364,75 +428,8 @@ if ($conn->connect_error) {
                 document.getElementById('qr-code').innerHTML = '<p style="color:red; text-align:center;">Error: QR code URL missing.</p>';
             }
 
-            // --- Apply saved settings from localStorage ---
-            if (currentSurveyId) {
-                // Construct the exact localStorage key used by preview_form.php
-                const localStorageKey = 'surveyPreviewSettings_' + currentSurveyId;
-                const settings = JSON.parse(localStorage.getItem(localStorageKey)) || {};
-
-                // Debugging: Log loaded settings
-                console.log("Loaded settings for survey ID", currentSurveyId, ":", settings);
-
-                // Apply Logo URL and visibility (controlled by 'showLogoUrl' and 'logoUrl')
-                if (settings.hasOwnProperty('showLogoUrl') && !settings.showLogoUrl) {
-                    mohLogo.classList.add('hidden-element');
-                } else {
-                    mohLogo.classList.remove('hidden-element');
-                    // Only update src if a logoUrl is saved, otherwise keep the default HTML src
-                    if (settings.logoUrl) {
-                        mohLogo.src = settings.logoUrl;
-                    }
-                }
-
-                // Apply Republic Title (controlled by 'showRepublicTitleShare' and 'republicTitleText')
-                if (settings.hasOwnProperty('showRepublicTitleShare') && !settings.showRepublicTitleShare) {
-                    republicTitleElement.classList.add('hidden-element');
-                } else {
-                    republicTitleElement.classList.remove('hidden-element');
-                    republicTitleElement.textContent = settings.republicTitleText || 'THE REPUBLIC OF UGANDA';
-                }
-
-                // Apply Ministry Subtitle (controlled by 'showMinistrySubtitleShare' and 'ministrySubtitleText')
-                if (settings.hasOwnProperty('showMinistrySubtitleShare') && !settings.showMinistrySubtitleShare) {
-                    ministrySubtitleElement.classList.add('hidden-element');
-                } else {
-                    ministrySubtitleElement.classList.remove('hidden-element');
-                    ministrySubtitleElement.textContent = settings.ministrySubtitleText || 'MINISTRY OF HEALTH';
-                }
-
-                // Apply Flag Bar (controlled by 'showFlagBar', 'flagBlackColor', 'flagYellowColor', 'flagRedColor')
-                if (settings.hasOwnProperty('showFlagBar') && !settings.showFlagBar) {
-                    flagBarElement.classList.add('hidden-element');
-                } else {
-                    flagBarElement.classList.remove('hidden-element');
-                    flagBlackElement.style.backgroundColor = settings.flagBlackColor || 'var(--uganda-black)';
-                    flagYellowElement.style.backgroundColor = settings.flagYellowColor || 'var(--uganda-yellow)';
-                    flagRedElement.style.backgroundColor = settings.flagRedColor || 'var(--uganda-red)';
-                }
-
-                // Apply QR Instructions Text and visibility (controlled by 'showQrInstructionsShare' and 'qrInstructionsText')
-                if (settings.hasOwnProperty('showQrInstructionsShare') && !settings.showQrInstructionsShare) {
-                    qrInstructionsElement.classList.add('hidden-element');
-                } else {
-                    qrInstructionsElement.classList.remove('hidden-element');
-                    qrInstructionsSpan.textContent = settings.qrInstructionsText || 'Scan this QR Code to Give Your Feedback\non Services Received';
-                }
-
-                // Apply Footer Note Text and visibility (controlled by 'showFooterNoteShare' and 'footerNoteText')
-                if (settings.hasOwnProperty('showFooterNoteShare') && !settings.showFooterNoteShare) {
-                    footerNoteElement.classList.add('hidden-element');
-                } else {
-                    footerNoteElement.classList.remove('hidden-element');
-                    footerNoteElement.textContent = settings.footerNoteText || 'Thank you for helping us improve our services.';
-                }
-
-                // Update document title if 'titleText' from preview is saved
-                if (settings.titleText) {
-                    document.title = settings.titleText;
-                }
-            } else {
-                console.warn("Survey ID not found in URL. Cannot load localStorage settings.");
-            }
+            // PHP has already applied all settings directly into the HTML.
+            // No additional JS needed here to apply visual changes on page load.
         });
 
         // --- Download Page Function ---
@@ -441,9 +438,13 @@ if ($conn->connect_error) {
                 let css = '';
                 Array.from(document.styleSheets).forEach(sheet => {
                     try {
-                        Array.from(sheet.cssRules || sheet.rules).forEach(rule => {
-                            css += rule.cssText + '\n';
-                        });
+                        if (sheet.href === null || sheet.href.startsWith(window.location.origin)) {
+                            Array.from(sheet.cssRules || sheet.rules).forEach(rule => {
+                                css += rule.cssText + '\n';
+                            });
+                        } else {
+                            console.warn('Skipping cross-origin stylesheet:', sheet.href);
+                        }
                     } catch (e) {
                         console.warn('Could not read CSS from sheet:', sheet.href || sheet.ownerNode, e);
                     }
@@ -453,22 +454,68 @@ if ($conn->connect_error) {
 
             const inlineCss = getAllCssRules();
 
-            // Generate the current QR code image data URL from the canvas
             const qrCodeCanvas = document.querySelector('#qr-code canvas');
             const qrCodeImgSrc = qrCodeCanvas ? qrCodeCanvas.toDataURL('image/png') : '';
 
-            // Clone the container to remove the download button for the downloaded HTML
             const containerToDownload = document.querySelector('.feedback-container').cloneNode(true);
             const downloadBtn = containerToDownload.querySelector('.download-button');
             if (downloadBtn) {
-                downloadBtn.remove(); // Remove the button from the cloned content
+                downloadBtn.remove();
             }
 
-            // Replace the QR code div with a static image for the downloaded file
             const qrCodeDivInCloned = containerToDownload.querySelector('#qr-code');
             if (qrCodeDivInCloned && qrCodeImgSrc) {
-                qrCodeDivInCloned.innerHTML = `<img src="${qrCodeImgSrc}" alt="QR Code" style="width:200px; height:200px; display:block;">`;
+                qrCodeDivInCloned.innerHTML = `<img src="${qrCodeImgSrc}" alt="QR Code" style="width:200px; height:200px; display:block; margin: 0 auto;">`; // Added margin: 0 auto for centering
             }
+
+            // --- Inject PHP-provided settings into the cloned HTML for static download ---
+            // This is needed for the downloaded HTML file, as it won't execute PHP.
+            // The main page already uses these directly.
+            const clonedLogoContainer = containerToDownload.querySelector('.logo-container');
+            if (clonedLogoContainer) {
+                clonedLogoContainer.style.display = (phpSurveySettings.show_logo ?? true) ? 'flex' : 'none';
+                const clonedLogoImg = clonedLogoContainer.querySelector('#moh-logo');
+                if (clonedLogoImg) clonedLogoImg.src = phpSurveySettings.logo_path || 'asets/asets/img/loog.jpg';
+            }
+
+            const clonedRepublicTitle = containerToDownload.querySelector('#republic-title-share');
+            if (clonedRepublicTitle) {
+                clonedRepublicTitle.textContent = phpSurveySettings.republic_title_text || 'THE REPUBLIC OF UGANDA';
+                clonedRepublicTitle.style.display = (phpSurveySettings.show_republic_title_share ?? true) ? 'block' : 'none';
+            }
+
+            const clonedMinistrySubtitle = containerToDownload.querySelector('#ministry-subtitle-share');
+            if (clonedMinistrySubtitle) {
+                clonedMinistrySubtitle.textContent = phpSurveySettings.ministry_subtitle_text || 'MINISTRY OF HEALTH';
+                clonedMinistrySubtitle.style.display = (phpSurveySettings.show_ministry_subtitle_share ?? true) ? 'block' : 'none';
+            }
+
+            const clonedFlagBar = containerToDownload.querySelector('#flag-bar-share');
+            if (clonedFlagBar) {
+                clonedFlagBar.style.display = (phpSurveySettings.show_flag_bar ?? true) ? 'flex' : 'none';
+                clonedFlagBar.querySelector('.flag-black').style.backgroundColor = phpSurveySettings.flag_black_color || '#000000';
+                clonedFlagBar.querySelector('.flag-yellow').style.backgroundColor = phpSurveySettings.flag_yellow_color || '#FFCE00';
+                clonedFlagBar.querySelector('.flag-red').style.backgroundColor = phpSurveySettings.flag_red_color || '#FF0000';
+            }
+
+            const clonedTitleH1 = containerToDownload.querySelector('h1');
+            if (clonedTitleH1) {
+                clonedTitleH1.textContent = phpSurveySettings.title_text || document.title.replace('Share Survey: ', '');
+            }
+
+            const clonedInstructions = containerToDownload.querySelector('#qr-instructions-text');
+            if (clonedInstructions) {
+                clonedInstructions.querySelector('span').textContent = phpSurveySettings.qr_instructions_text || 'Scan this QR Code to Give Your Feedback\non Services Received';
+                clonedInstructions.style.display = (phpSurveySettings.show_qr_instructions_share ?? true) ? 'flex' : 'none';
+            }
+
+            const clonedFooterNote = containerToDownload.querySelector('#footer-note-text');
+            if (clonedFooterNote) {
+                clonedFooterNote.textContent = phpSurveySettings.footer_note_text || 'Thank you for helping us improve our services.';
+                clonedFooterNote.style.display = (phpSurveySettings.show_footer_note_share ?? true) ? 'block' : 'none';
+            }
+            // --- END INJECT ---
+
 
             const htmlContent = `<!DOCTYPE html>
 <html lang="en">
@@ -490,7 +537,7 @@ if ($conn->connect_error) {
             const blob = new Blob([htmlContent], { type: 'text/html' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = 'ministry-of-health-feedback-share.html';
+            a.download = `QR_Code_Feedback_Survey_${phpSurveyId}.html`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);

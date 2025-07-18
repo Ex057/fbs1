@@ -20,6 +20,8 @@ $surveyId = filter_var($_POST['survey_id'] ?? null, FILTER_VALIDATE_INT);
 $sortBy = $_POST['sort'] ?? 'created_desc';
 $format = strtolower($_POST['format'] ?? 'csv');
 
+error_log("Survey ID: " . $surveyId . ", Format: " . $format); // Add this
+
 // Validate survey ID
 if (!$surveyId) {
     die("Valid Survey ID is required.");
@@ -162,6 +164,37 @@ foreach ($submissions as $submission) {
     $exportData[] = $row;
 }
 
+// Remove columns if all values are empty or N/A for these fields
+$fieldsToCheck = [
+    'Age', 'Sex', 'Period', 'Service Unit', 'Location', 'Ownership'
+];
+$headerIndexesToRemove = [];
+foreach ($fieldsToCheck as $field) {
+    $headerIndex = array_search($field, $headers);
+    if ($headerIndex !== false) {
+        $allEmpty = true;
+        for ($i = 1; $i < count($exportData); $i++) {
+            $val = $exportData[$i][$headerIndex];
+            if ($val !== '' && strtoupper($val) !== 'N/A') {
+                $allEmpty = false;
+                break;
+            }
+        }
+        if ($allEmpty) {
+            $headerIndexesToRemove[] = $headerIndex;
+        }
+    }
+}
+// Remove columns in reverse order to keep indexes correct
+rsort($headerIndexesToRemove);
+foreach ($headerIndexesToRemove as $idx) {
+    foreach ($exportData as &$row) {
+        array_splice($row, $idx, 1);
+    }
+    unset($row);
+    array_splice($headers, $idx, 1);
+}
+
 // Prepare structured data for JSON and XML formats
 $structuredData = [];
 for ($i = 1; $i < count($exportData); $i++) {
@@ -181,6 +214,7 @@ switch ($format) {
     case 'pdf':
         // Create new PDF document
         $mpdf = new \Mpdf\Mpdf([
+            'orientation' => 'L',
             'margin_left' => 10,
             'margin_right' => 10,
             'margin_top' => 15,

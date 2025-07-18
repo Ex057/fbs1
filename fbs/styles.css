@@ -143,7 +143,7 @@ textarea {
 
 /* Radio group styles */
 .radio-group {
-    display: flex;
+    display: flex; /* Keep this to organize label and options vertically */
     flex-direction: column;
     margin-bottom: 15px;
 }
@@ -156,26 +156,56 @@ textarea {
 
 .radio-options {
     display: flex;
-    justify-content: flex-start;
+    flex-wrap: wrap; /* Crucial: Allows options to wrap to the next line */
+    justify-content: flex-start; /* Aligns items to the start */
     padding: 5px 0;
     padding-left: 28px;
-    gap: 60px;
-    width: 100%;
-    align-items: center;
+    gap: 20px; /* Adjusted gap for better spacing on larger screens, reduced from 40px */
+    align-items: center; /* Vertically center items in the flex container */
 }
 
-/* Media query for smaller screens */
+/* Base styles for individual radio option containers */
+.radio-option {
+    display: flex;
+    flex-direction: row; /* Make the input and label side-by-side within the option */
+    align-items: center; /* Vertically align input and label */
+    font-size: 14px; /* Base font size */
+    /* Remove min-width or explicitly set max-width if you want items to shrink */
+    /* Consider using flex-basis if you want more control over initial sizing */
+}
+
+.radio-option label {
+    font-weight: normal; /* Keep option text normal as per your original */
+    white-space: nowrap; /* Prevent label text from wrapping */
+}
+
+.radio-option input[type="radio"] {
+    /* Reduce default radio button size */
+    transform: scale(0.9); /* Makes the radio button slightly smaller */
+    margin-right: 5px; /* Space between radio button and label */
+    cursor: pointer;
+}
+
+/* Media query for smaller screens (e.g., tablets and larger phones) */
 @media screen and (max-width: 768px) {
     .container {
         padding: 15px;
         width: 95%;
     }
-    
+
     .radio-options {
-        /* Stack options vertically on small screens */
-        align-items: flex-start;
-        gap: 15px; /* Reduced gap for vertical layout */
-        padding-left: 15px;
+        justify-content: space-around; /* Distribute items more evenly */
+        gap: 15px; /* Reduce gap further for more compactness */
+        padding-left: 15px; /* Reduce indentation */
+        /* Align-items should still be center for horizontal layout */
+    }
+
+    .radio-option {
+        font-size: 13px; /* Slightly smaller font on tablets/phones */
+    }
+
+    .radio-option input[type="radio"] {
+        transform: scale(0.85); /* Make radio button even smaller */
     }
 }
 
@@ -186,23 +216,22 @@ textarea {
         width: 100%;
         border-radius: 5px;
     }
-}
 
+    .radio-options {
+        gap: 10px; /* Tighten gap even more for very small screens */
+        justify-content: center; /* Center options if there are few, or let flex-wrap handle it */
+        padding-left: 10px; /* Further reduce indentation */
+    }
 
-.radio-option {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    font-size: 14px;
-}
+    .radio-option {
+        /* On very small screens, allow options to take less space */
+        font-size: 12px; /* Even smaller font size for compactness */
+        /* Potentially set a min-width or flex-basis if options become too small */
+    }
 
-.radio-option label {
-    font-weight: normal; /* Make option text bold */
-}
-
-.radio-option input[type="radio"] {
-    margin-right: 5px; /* Space between radio button and label */
-    cursor: pointer;
+    .radio-option input[type="radio"] {
+        transform: scale(0.8); /* Smallest radio button size */
+    }
 }
 /* Month input specific styles */
 input[type="month"] {

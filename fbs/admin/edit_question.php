@@ -94,6 +94,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new Exception("Question type is required.");
         }
 
+        // Get the 'is_required' status
+        $isRequired = isset($_POST['is_required']) ? 1 : 0;
+
         // Update translations
         $newTranslations = [];
         if (isset($_POST['lang']) && is_array($_POST['lang'])) {
@@ -105,9 +108,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $translationsJson = !empty($newTranslations) ? json_encode($newTranslations) : null;
 
-        // Update the question in the database
-        $stmt = $pdo->prepare("UPDATE question SET label = ?, question_type = ?, translations = ? WHERE id = ?");
-        $stmt->execute([$questionLabel, $questionType, $translationsJson, $questionId]);
+        // Update the question in the database, including 'is_required'
+        $stmt = $pdo->prepare("UPDATE question SET label = ?, question_type = ?, is_required = ?, translations = ? WHERE id = ?");
+        $stmt->execute([$questionLabel, $questionType, $isRequired, $translationsJson, $questionId]);
 
         // Handle options (if applicable)
         if (in_array($questionType, ['radio', 'checkbox', 'select'])) {
@@ -167,9 +170,7 @@ $optionSets = $pdo->query("
     <title>Edit Question</title>
     <link href="asets/asets/css/nucleo-icons.css" rel="stylesheet" />
     <link href="asets/asets/css/nucleo-svg.css" rel="stylesheet" />
-    <!-- Font Awesome Icons -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <!-- Argon CSS -->
     <link href="asets/asets/css/argon-dashboard.css" rel="stylesheet" />
     <style>
         .translations-container {
@@ -193,7 +194,6 @@ $optionSets = $pdo->query("
             </a>
         </div>
 
-        <!-- Display success/error messages -->
         <?php if (isset($_SESSION['success_message'])): ?>
             <div class="alert alert-success"><?= $_SESSION['success_message'] ?></div>
             <?php unset($_SESSION['success_message']); ?>
@@ -203,7 +203,6 @@ $optionSets = $pdo->query("
             <?php unset($_SESSION['error_message']); ?>
         <?php endif; ?>
 
-        <!-- Edit Question Form -->
         <form method="POST" action="">
             <div class="mb-3">
                 <label for="question_label" class="form-label">Question Label</label>
@@ -217,10 +216,15 @@ $optionSets = $pdo->query("
                     <option value="radio" <?= $question['question_type'] === 'radio' ? 'selected' : '' ?>>Radio</option>
                     <option value="checkbox" <?= $question['question_type'] === 'checkbox' ? 'selected' : '' ?>>Checkbox</option>
                     <option value="select" <?= $question['question_type'] === 'select' ? 'selected' : '' ?>>Dropdown</option>
+                    <option value="rating" <?= $question['question_type'] === 'rating' ? 'selected' : '' ?>>Rating</option>
                 </select>
             </div>
 
-            <!-- Translations Section -->
+            <div class="mb-3 form-check">
+                <input type="checkbox" class="form-check-input" id="is_required" name="is_required" <?= $question['is_required'] ? 'checked' : '' ?>>
+                <label class="form-check-label" for="is_required">Is Required</label>
+            </div>
+
             <div class="translations-container">
                 <h4>Question Translations (Optional)</h4>
                 <p>Add translations for this question in different languages.</p>
@@ -241,9 +245,7 @@ $optionSets = $pdo->query("
                 <button type="button" class="btn btn-secondary" onclick="addTranslation()">Add Translation</button>
             </div>
 
-            <!-- Options Section -->
-            <div class="mb-3" id="options_section" style="display: <?= in_array($question['question_type'], ['radio', 'checkbox', 'select']) ? 'block' : 'none' ?>;">
-                <label class="form-label">Options</label>
+            <div class="mb-3" id="options_section" style="display: <?= in_array($question['question_type'], ['radio', 'checkbox', 'select', 'rating']) ? 'block' : 'none' ?>;">                <label class="form-label">Options</label>
                 <div class="mb-2">
                     <div class="form-check">
                         <input type="radio" class="form-check-input" name="option_source" value="existing" checked onclick="toggleOptions('existing')">
@@ -278,7 +280,6 @@ $optionSets = $pdo->query("
         </div>
      </div>
     <?php include 'components/fixednav.php'; ?>
-    <!-- Core JS Files -->
     <script src="asets/asets/js/core/popper.min.js"></script>
     <script src="asets/asets/js/core/bootstrap.min.js"></script>
     <script src="asets/asets/js/plugins/perfect-scrollbar.min.js"></script>
@@ -288,11 +289,11 @@ $optionSets = $pdo->query("
         // Show/hide options section based on question type
         document.getElementById('question_type').addEventListener('change', function() {
             const optionsSection = document.getElementById('options_section');
-            if (['radio', 'checkbox', 'select'].includes(this.value)) {
-                optionsSection.style.display = 'block';
-            } else {
-                optionsSection.style.display = 'none';
-            }
+           if (['radio', 'checkbox', 'select', 'rating'].includes(this.value)) {
+    optionsSection.style.display = 'block';
+} else {
+    optionsSection.style.display = 'none';
+}
         });
 
         // Toggle between existing and custom options

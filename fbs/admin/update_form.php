@@ -192,6 +192,7 @@ if ($isAjax && $_SERVER['REQUEST_METHOD'] === 'GET') {
             display: inline-block;
             text-align: right;
         }
+    
     </style>
 </head>
 <body class="g-sidenav-show bg-gray-100">
@@ -320,7 +321,7 @@ if ($isAjax && $_SERVER['REQUEST_METHOD'] === 'GET') {
         </div>
     </div>
 
-    <?php include 'components/fixednav.php'; ?>
+    <!-- <?php include 'components/fixednav.php'; ?> -->
 
     <script src="asets/asets/js/core/popper.min.js"></script>
     <script src="asets/asets/js/core/bootstrap.min.js"></script>

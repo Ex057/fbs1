@@ -785,7 +785,7 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
     </div>
 
-    <?php include 'components/fixednav.php'; ?>
+    <!-- <?php include 'components/fixednav.php'; ?> -->
 
     <script src="argon-dashboard-master/assets/js/core/popper.min.js"></script>
     <script src="argon-dashboard-master/assets/js/core/bootstrap.min.js"></script>

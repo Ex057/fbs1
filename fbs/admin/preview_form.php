@@ -20,6 +20,8 @@ if (!$surveyId) {
     die("Survey ID is missing.");
 }
 
+
+
 // Fetch survey details including survey name AND TYPE
 $surveyStmt = $conn->prepare("SELECT id, type, name FROM survey WHERE id = ?");
 $surveyStmt->bind_param("i", $surveyId);
@@ -32,7 +34,124 @@ if (!$survey) {
 }
 
 // Set the default survey title from the database
+// THIS IS LINE 48 IN YOUR ORIGINAL CODE IF THE ERROR WAS THERE,
+// SO THE INSERT LOGIC SHOULD COME *AFTER* THIS LINE.
 $defaultSurveyTitle = htmlspecialchars($survey['name'] ?? 'Ministry of Health Client Satisfaction Feedback Tool');
+
+// Fetch translations for the selected language
+$language = isset($_GET['language']) ? $_GET['language'] : 'en'; // Default to English
+$translations = [];
+$query = "SELECT key_name, translations FROM default_text";
+$translations_result = $conn->query($query);
+while ($row = $translations_result->fetch_assoc()) {
+    $decoded_translations = json_decode($row['translations'], true);
+    $translations[$row['key_name']] = $decoded_translations[$language] ?? $row['key_name'];
+}
+
+// Fetch survey settings from the database
+$surveySettings = [];
+$settingsStmt = $conn->prepare("SELECT * FROM survey_settings WHERE survey_id = ?");
+$settingsStmt->bind_param("i", $surveyId);
+$settingsStmt->execute();
+$settingsResult = $settingsStmt->get_result();
+$existingSettings = $settingsResult->fetch_assoc();
+
+if ($existingSettings) {
+    // If settings exist, use them
+    $surveySettings = $existingSettings;
+} else {
+    // If no settings exist for this survey, insert default values
+    // This handles new surveys or surveys created before this feature
+    $insertStmt = $conn->prepare("
+        INSERT INTO survey_settings (
+            survey_id, logo_path, show_logo, flag_black_color, flag_yellow_color, flag_red_color, show_flag_bar,
+            title_text, show_title, subheading_text, show_subheading, show_submit_button,
+            rating_instruction1_text, rating_instruction2_text, show_rating_instructions,
+            show_facility_section, show_location_row_general, show_location_row_period_age, show_ownership_section,
+            republic_title_text, show_republic_title_share, ministry_subtitle_text, show_ministry_subtitle_share,
+            qr_instructions_text, show_qr_instructions_share, footer_note_text, show_footer_note_share
+        ) VALUES (
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        )
+    ");
+
+    $defaultLogoPath = 'asets/asets/img/loog.jpg';
+    $defaultShowLogo = 1;
+    $defaultFlagBlackColor = '#000000';
+    $defaultFlagYellowColor = '#FCD116';
+    $defaultFlagRedColor = '#D21034';
+    $defaultShowFlagBar = 1;
+    $defaultTitleText = $defaultSurveyTitle; // Now $defaultSurveyTitle is defined!
+    $defaultShowTitle = 1;
+    $defaultSubheadingText = $translations['subheading'] ?? 'This tool is used to obtain clients\' feedback about their experience with the services and promote quality improvement, accountability, and transparency within the healthcare system.';
+    $defaultShowSubheading = 1;
+    $defaultShowSubmitButton = 1;
+    $defaultRatingInstruction1Text = $translations['rating_instruction'] ?? '1. Please rate each of the following parameters according to your experience today on a scale of 1 to 4.';
+    $defaultRatingInstruction2Text = $translations['rating_scale'] ?? 'where \'0\' means Poor, \'1\' Fair, \'2\' Good and \'3\' Excellent';
+    $defaultShowRatingInstructions = 1;
+    $defaultShowFacilitySection = 1;
+    $defaultShowLocationRowGeneral = 1;
+    $defaultShowLocationRowPeriodAge = 1;
+    $defaultShowOwnershipSection = 1;
+    $defaultRepublicTitleText = 'THE REPUBLIC OF UGANDA';
+    $defaultShowRepublicTitleShare = 1;
+    $defaultMinistrySubtitleText = 'MINISTRY OF HEALTH';
+    $defaultShowMinistrySubtitleShare = 1;
+    $defaultQrInstructionsText = 'Scan this QR Code to Give Your Feedback on Services Received';
+    $defaultShowQrInstructionsShare = 1;
+    $defaultFooterNoteText = 'Thank you for helping us improve our services.';
+    $defaultShowFooterNoteShare = 1;
+
+   $type_string = "sisssisissiisssiiiiiisssisi"; // Confirmed 27 characters
+
+$insertStmt->bind_param($type_string,
+    $surveyId, $defaultLogoPath, $defaultShowLogo, $defaultFlagBlackColor, $defaultFlagYellowColor, $defaultFlagRedColor, $defaultShowFlagBar,
+    $defaultTitleText, $defaultShowTitle, $defaultSubheadingText, $defaultShowSubheading, $defaultShowSubmitButton,
+    $defaultRatingInstruction1Text, $defaultRatingInstruction2Text, $defaultShowRatingInstructions,
+    $defaultShowFacilitySection, $defaultShowLocationRowGeneral, $defaultShowLocationRowPeriodAge, $defaultShowOwnershipSection,
+    $defaultRepublicTitleText, $defaultShowRepublicTitleShare, $defaultMinistrySubtitleText, $defaultShowMinistrySubtitleShare,
+    $defaultQrInstructionsText, $defaultShowQrInstructionsShare, $defaultFooterNoteText, $defaultShowFooterNoteShare
+);
+
+    if ($insertStmt->execute()) {
+        // After successful insert, re-fetch to populate $surveySettings
+        $settingsResult = $conn->query("SELECT * FROM survey_settings WHERE survey_id = $surveyId");
+        $surveySettings = $settingsResult->fetch_assoc();
+    } else {
+        error_log("Error inserting default survey settings: " . $insertStmt->error);
+        // Fallback: use hardcoded defaults if DB insert fails
+        $surveySettings = [
+            'logo_path' => $defaultLogoPath,
+            'show_logo' => $defaultShowLogo,
+            'flag_black_color' => $defaultFlagBlackColor,
+            'flag_yellow_color' => $defaultFlagYellowColor,
+            'flag_red_color' => $defaultFlagRedColor,
+            'show_flag_bar' => $defaultShowFlagBar,
+            'title_text' => $defaultTitleText,
+            'show_title' => $defaultShowTitle,
+            'subheading_text' => $defaultSubheadingText,
+            'show_subheading' => $defaultShowSubheading,
+            'show_submit_button' => $defaultShowSubmitButton,
+            'rating_instruction1_text' => $defaultRatingInstruction1Text,
+            'rating_instruction2_text' => $defaultRatingInstruction2Text,
+            'show_rating_instructions' => $defaultShowRatingInstructions,
+            'show_facility_section' => $defaultShowFacilitySection,
+            'show_location_row_general' => $defaultShowLocationRowGeneral,
+            'show_location_row_period_age' => $defaultShowLocationRowPeriodAge,
+            'show_ownership_section' => $defaultShowOwnershipSection,
+            'republic_title_text' => $defaultRepublicTitleText,
+            'show_republic_title_share' => $defaultShowRepublicTitleShare,
+            'ministry_subtitle_text' => $defaultMinistrySubtitleText,
+            'show_ministry_subtitle_share' => $defaultMinistrySubtitleShare,
+            'qr_instructions_text' => $defaultQrInstructionsText,
+            'show_qr_instructions_share' => $defaultShowQrInstructionsShare,
+            'footer_note_text' => $defaultFooterNoteText,
+            'show_footer_note_share' => $defaultShowFooterNoteShare,
+        ];
+    }
+    $insertStmt->close();
+}
+$settingsStmt->close();
 
 // Fetch questions and options for the selected survey, ordered by position
 $questions = $conn->query("
@@ -64,28 +183,14 @@ while ($question = $questions->fetch_assoc()) {
     $questionsArray[] = $question;
 }
 
-// Fetch translations for the selected language
-$language = isset($_GET['language']) ? $_GET['language'] : 'en'; // Default to English
-$translations = [];
-$query = "SELECT key_name, translations FROM default_text";
-$translations_result = $conn->query($query);
-while ($row = $translations_result->fetch_assoc()) {
-    $decoded_translations = json_decode($row['translations'], true);
-    $translations[$row['key_name']] = $decoded_translations[$language] ?? $row['key_name'];
-}
 
-// Apply translations to questions and options
-foreach ($questionsArray as &$question) {
-    $questionTranslations = $question['translations'] ? json_decode($question['translations'], true) : [];
-    $question['label'] = $questionTranslations[$language] ?? $question['label'];
 
-    foreach ($question['options'] as &$option) {
-        $optionTranslations = $option['translations'] ? json_decode($option['translations'], true) : [];
-        $option['option_value'] = $optionTranslations[$language] ?? $option['option_value'];
-    }
-}
 unset($question); // Break the reference with the last element
 unset($option);   // Break the reference with the last element
+
+
+
+
 ?>
 
 <!DOCTYPE html>
@@ -277,6 +382,47 @@ unset($option);   // Break the reference with the last element
         .action-button i {
             font-size: 18px;
         }
+        .star-rating {
+    display: flex;
+    flex-direction: row;
+    gap: 24px; /* space between stars */
+    justify-content: center;
+    align-items: flex-end;
+    margin: 12px 0;
+}
+
+.star-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 50px;
+}
+
+.star-number {
+    font-size: 1rem;
+    color: #888;
+    margin-bottom: 2px;
+    font-weight: 500;
+}
+
+.star {
+    color: #ccc;
+    font-size: 2.2rem;
+    transition: color 0.2s;
+    cursor: pointer;
+    outline: none;
+    user-select: none;
+}
+
+.star.selected,
+.star.hovered {
+    color: #FFD600;
+}
+
+.star:focus {
+    outline: 2px solid #1976d2;
+}
+   
     </style>
 </head>
 <body>
@@ -285,24 +431,23 @@ unset($option);   // Break the reference with the last element
 
             <div class="header-section" id="logo-section">
                 <div class="logo-container">
-                    <img id="moh-logo" src="asets/asets/img/loog.jpg" alt="Ministry of Health Logo">
+                  <img id="moh-logo" src="<?php echo htmlspecialchars($surveySettings['logo_path'] ?? ''); ?>" alt="Ministry of Health Logo">
                 </div>
-                <div class="title hidden-element" id="republic-title">THE REPUBLIC OF UGANDA</div>
-                <div class="subtitle hidden-element" id="ministry-subtitle">MINISTRY OF HEALTH</div>
+             <div class="title hidden-element" id="republic-title"><?php echo htmlspecialchars($surveySettings['republic_title_text'] ?? ''); ?></div>
+            <div class="subtitle hidden-element" id="ministry-subtitle"><?php echo htmlspecialchars($surveySettings['ministry_subtitle_text'] ?? ''); ?></div>
             </div>
 
             <div class="flag-bar" id="flag-bar">
-                <div class="flag-black" id="flag-black-color"></div>
-                <div class="flag-yellow" id="flag-yellow-color"></div>
-                <div class="flag-red" id="flag-red-color"></div>
+                <div class="flag-black" id="flag-black-color" style="background-color: <?php echo htmlspecialchars($surveySettings['flag_black_color'] ?? '#000000'); ?>;"></div>
+                <div class="flag-yellow" id="flag-yellow-color" style="background-color: <?php echo htmlspecialchars($surveySettings['flag_yellow_color'] ?? '#FCD116'); ?>;"></div>
+                <div class="flag-red" id="flag-red-color" style="background-color: <?php echo htmlspecialchars($surveySettings['flag_red_color'] ?? '#D21034'); ?>;"></div>
             </div>
 
-            <h2 id="survey-title" data-translate="title"><?php echo $defaultSurveyTitle; ?></h2>
-            <h3 id="survey-subtitle" data-translate="client_satisfaction_tool"><?php echo $translations['client_satisfaction_tool'] ?? 'CLIENT SATISFACTION FEEDBACK TOOL'; ?></h3>
-            <p class="subheading" id="survey-subheading" data-translate="subheading">
-                <?php echo $translations['subheading'] ?? 'This tool is used to obtain clients\' feedback about their experience with the services and promote quality improvement, accountability, and transparency within the healthcare system.'; ?>
-            </p>
-
+           <h2 id="survey-title" data-translate="title"><?php echo htmlspecialchars($surveySettings['title_text'] ?? ''); ?></h2>
+            <h3 id="survey-subtitle" data-translate="client_satisfaction_tool"><?php echo $translations['client_satisfaction_tool'] ?? 'CLIENT SATISFACTION FEEDBACK TOOL'; ?></h3>        
+               <p class="subheading" id="survey-subheading" data-translate="subheading">
+                    <?php echo htmlspecialchars($surveySettings['subheading_text'] ?? ''); ?>
+                </p>
             <div class="facility-section" id="facility-section">
                 <div class="form-group">
                     <label for="facility-search">Locations:</label>
@@ -361,13 +506,13 @@ unset($option);   // Break the reference with the last element
                 </div>
 
                 <div class="radio-group" id="ownership-section">
-                    <label for="ownership" class="radio-label" data-translate="ownership"><?php echo $translations['ownership'] ?? 'Ownership'; ?></label>
+                   <label class="radio-label" data-translate="ownership"><?php echo $translations['ownership'] ?? 'Ownership'; ?></label>
                     <div class="radio-options" id="ownership-options">
                         </div>
                 </div>
 
-                <p id="rating-instruction-1" data-translate="rating_instruction"><?php echo $translations['rating_instruction'] ?? '1. Please rate each of the following parameters according to your experience today on a scale of 1 to 4.'; ?></p>
-                <p id="rating-instruction-2" data-translate="rating_scale" style="color: red; font-size: 12px; font-style: italic;"><?php echo $translations['rating_scale'] ?? 'where \'0\' means Poor, \'1\' Fair, \'2\' Good and \'3\' Excellent'; ?></p>
+            <p id="rating-instruction-1" data-translate="rating_instruction"><?php echo htmlspecialchars($surveySettings['rating_instruction1_text'] ?? ''); ?></p>
+          <p id="rating-instruction-2" data-translate="rating_scale" style="color: red; font-size: 14px; font-style: italic;"><?php echo htmlspecialchars($surveySettings['rating_instruction2_text'] ?? ''); ?></p>
 
             <?php endif; ?>
 
@@ -423,7 +568,31 @@ unset($option);   // Break the reference with the last element
                         <textarea class="form-control"
                                   name="question_<?php echo $question['id']; ?>"
                                   rows="3"></textarea>
-                    <?php endif; ?>
+                    
+                    
+                 <?php elseif ($question['question_type'] == 'rating'): ?>
+    <div class="star-rating"
+         data-question-id="<?php echo $question['id']; ?>"
+         data-required="<?php echo $question['is_required'] ? 'true' : 'false'; ?>">
+        <?php
+        $maxStars = count($question['options']);
+        for ($i = 1; $i <= $maxStars; $i++): ?>
+            <div class="star-container">
+                <div class="star-number"><?php echo $i; ?></div>
+                <span class="star"
+                      data-value="<?php echo $i; ?>"
+                      aria-label="<?php echo $i; ?> star"
+                      tabindex="0">&#9733;</span>
+            </div>
+        <?php endfor; ?>
+        <input type="hidden"
+               name="question_<?php echo $question['id']; ?>"
+               id="star-rating-input-<?php echo $question['id']; ?>"
+               value=""
+               <?php echo $question['is_required'] ? 'required' : ''; ?>>
+    </div>
+<?php endif; ?>
+
                 </div>
             <?php endforeach; ?>
 
@@ -441,7 +610,7 @@ unset($option);   // Break the reference with the last element
                         <input type="file" id="logo-upload" accept="image/*">
                         <div class="checkbox-group">
                             <label>
-                                <input type="checkbox" id="toggle-logo" checked> Show Logo
+                                <input type="checkbox" id="toggle-logo" <?php echo $surveySettings['show_logo'] ? 'checked' : ''; ?>> Show Logo
                             </label>
                         </div>
                     </div>
@@ -456,32 +625,38 @@ unset($option);   // Break the reference with the last element
                         <input type="color" id="flag-red-color-picker" value="#D21034">
                         <div class="checkbox-group">
                             <label>
-                                <input type="checkbox" id="toggle-flag-bar" checked> Show Color Bar
+                               <input type="checkbox" id="toggle-flag-bar" <?php echo $surveySettings['show_flag_bar'] ? 'checked' : ''; ?>> Show Color Bar
                             </label>
                         </div>
                     </div>
                 </div>
             </div>
-
+               
+                  
+                 
             <div class="accordion-item">
+            
+                   
+                      
                 <button class="accordion-header">Survey Content <i class="fas fa-chevron-down"></i></button>
                 <div class="accordion-content">
-                    <div class="setting-group">
-                        <label for="edit-title">Survey Title:</label>
-                        <input type="text" id="edit-title" value="<?php echo $defaultSurveyTitle; ?>">
-                        <div class="checkbox-group">
-                            <label>
-                                <input type="checkbox" id="toggle-title" checked> Show Title
-                            </label>
-                        </div>
-                    </div>
 
+                          <div class="setting-group">
+                            <label for="edit-title">Survey Title:</label><input type="text" id="edit-title" value="<?php echo htmlspecialchars($surveySettings['title_text'] ?? ''); ?>">
+                            <div class="checkbox-group">
+                                <label>
+                                    <input type="checkbox" id="toggle-title" <?php echo $surveySettings['show_title'] ? 'checked' : ''; ?>> Show Title
+                                </label>
+                            </div>
+                        </div>
+                     
                     <div class="setting-group">
                         <label for="edit-subheading">Survey Subheading:</label>
-                        <textarea id="edit-subheading" rows="4"><?php echo htmlspecialchars($translations['subheading'] ?? 'This tool is used to obtain clients\' feedback about their experience with the services and promote quality improvement, accountability, and transparency within the healthcare system.'); ?></textarea>
+                        <textarea id="edit-subheading" rows="4"><?php echo htmlspecialchars($surveySettings['subheading_text'] ?? 'This tool is used to obtain clients\' feedback about their experience with the services and promote quality improvement, accountability, and transparency within the healthcare system.'); ?></textarea>
+                    
                         <div class="checkbox-group">
                             <label>
-                                <input type="checkbox" id="toggle-subheading" checked> Show Subheading
+                                <input type="checkbox" id="toggle-subheading" <?php echo $surveySettings['show_subheading'] ? 'checked' : ''; ?>> Show Subheading
                             </label>
                         </div>
                     </div>
@@ -493,7 +668,7 @@ unset($option);   // Break the reference with the last element
                         <textarea id="edit-rating-instruction-2" rows="2"><?php echo htmlspecialchars($translations['rating_scale'] ?? 'where \'0\' means Poor, \'1\' Fair, \'2\' Good and \'3\' Excellent'); ?></textarea>
                         <div class="checkbox-group">
                             <label>
-                                <input type="checkbox" id="toggle-rating-instructions" checked> Show Rating Instructions
+                                <input type="checkbox" id="toggle-rating-instructions" <?php echo $surveySettings['show_rating_instructions'] ? 'checked' : ''; ?>> Show Rating Instructions
                             </label>
                         </div>
                     </div>
@@ -506,7 +681,7 @@ unset($option);   // Break the reference with the last element
                     <div class="setting-group" id="toggle-facility-section-group">
                         <div class="checkbox-group">
                             <label>
-                                <input type="checkbox" id="toggle-facility-section" checked> Show Facility Section
+                                <input type="checkbox" id="toggle-facility-section" <?php echo $surveySettings['show_facility_section'] ? 'checked' : ''; ?>> Show Facility Section
                             </label>
                         </div>
                     </div>
@@ -514,7 +689,7 @@ unset($option);   // Break the reference with the last element
                     <div class="setting-group" id="toggle-location-row-general-group">
                         <div class="checkbox-group">
                             <label>
-                                <input type="checkbox" id="toggle-location-row-general" checked> Show Service Unit/Sex
+                               <input type="checkbox" id="toggle-location-row-general" <?php echo $surveySettings['show_location_row_general'] ? 'checked' : ''; ?>> Show Service Unit/Sex
                             </label>
                         </div>
                     </div>
@@ -522,7 +697,7 @@ unset($option);   // Break the reference with the last element
                     <div class="setting-group" id="toggle-location-row-period-age-group">
                         <div class="checkbox-group">
                             <label>
-                                <input type="checkbox" id="toggle-location-row-period-age" checked> Show Reporting Period/Age
+                                <input type="checkbox" id="toggle-location-row-period-age" <?php echo $surveySettings['show_location_row_period_age'] ? 'checked' : ''; ?>> Show Reporting Period/Age
                             </label>
                         </div>
                     </div>
@@ -530,7 +705,7 @@ unset($option);   // Break the reference with the last element
                     <div class="setting-group" id="toggle-ownership-section-group">
                         <div class="checkbox-group">
                             <label>
-                                <input type="checkbox" id="toggle-ownership-section" checked> Show Ownership
+                               <input type="checkbox" id="toggle-ownership-section" <?php echo $surveySettings['show_ownership_section'] ? 'checked' : ''; ?>> Show Ownership
                             </label>
                         </div>
                     </div>
@@ -538,8 +713,7 @@ unset($option);   // Break the reference with the last element
                     <div class="setting-group">
                         <div class="checkbox-group">
                             <label>
-                                <input type="checkbox" id="toggle-submit-button" checked> Show Submit Button
-                            </label>
+                          <input type="checkbox" id="toggle-submit-button" <?php echo $surveySettings['show_submit_button'] ? 'checked' : ''; ?>> Show Submit Button                        </label>
                         </div>
                     </div>
                 </div>
@@ -550,46 +724,47 @@ unset($option);   // Break the reference with the last element
                 <div class="accordion-content">
                     <div class="setting-group">
                         <label for="edit-logo-url">Logo URL (for Share Page):</label>
-                        <input type="text" id="edit-logo-url" value="asets/asets/img/loog.jpg" readonly>
-                        <div class="checkbox-group">
+                      <input type="text" id="edit-logo-url" value="<?php echo htmlspecialchars($surveySettings['logo_path'] ?? 'asets/asets/img/loog.jpg'); ?>" readonly>
+                                           <div class="checkbox-group">
                             <label>
-                                <input type="checkbox" id="toggle-logo-url" checked> Show Logo on Share Page
+                               <input type="checkbox" id="toggle-logo-url" <?php echo $surveySettings['show_logo'] ? 'checked' : ''; ?>> Show Logo on Share Page
                             </label>
                         </div>
                     </div>
                     <div class="setting-group">
                         <label for="edit-republic-title-share">Republic Title (Share Page):</label>
-                        <input type="text" id="edit-republic-title-share" value="THE REPUBLIC OF UGANDA">
+                       <input type="text" id="edit-republic-title-share" value="<?php echo htmlspecialchars($surveySettings['republic_title_text'] ?? 'THE REPUBLIC OF UGANDA'); ?>">
                         <div class="checkbox-group">
                             <label>
-                                <input type="checkbox" id="toggle-republic-title-share" checked> Show Republic Title
+                                <input type="checkbox" id="toggle-republic-title-share" <?php echo $surveySettings['show_republic_title_share'] ? 'checked' : ''; ?>> Show Republic Title
                             </label>
                         </div>
                     </div>
                     <div class="setting-group">
                         <label for="edit-ministry-subtitle-share">Ministry Subtitle (Share Page):</label>
-                        <input type="text" id="edit-ministry-subtitle-share" value="MINISTRY OF HEALTH">
+                       <input type="text" id="edit-ministry-subtitle-share" value="<?php echo htmlspecialchars($surveySettings['ministry_subtitle_text'] ?? 'MINISTRY OF HEALTH'); ?>">
                         <div class="checkbox-group">
                             <label>
-                                <input type="checkbox" id="toggle-ministry-subtitle-share" checked> Show Ministry Subtitle
+                                <input type="checkbox" id="toggle-ministry-subtitle-share" <?php echo $surveySettings['show_ministry_subtitle_share'] ? 'checked' : ''; ?>> Show Ministry Subtitle
                             </label>
                         </div>
                     </div>
                     <div class="setting-group">
                         <label for="edit-qr-instructions-share">QR Instructions Text (Share Page):</label>
-                        <textarea id="edit-qr-instructions-share" rows="3">Scan this QR Code to Give Your Feedback on Services Received</textarea>
+                        <textarea id="edit-qr-instructions-share" rows="3"><?php echo htmlspecialchars($surveySettings['qr_instructions_text'] ?? ''); ?></textarea>
                         <div class="checkbox-group">
                             <label>
-                                <input type="checkbox" id="toggle-qr-instructions-share" checked> Show QR Instructions
+                                <input type="checkbox" id="toggle-qr-instructions-share" <?php echo $surveySettings['show_qr_instructions_share'] ? 'checked' : ''; ?>> Show QR Instructions
                             </label>
                         </div>
                     </div>
                     <div class="setting-group">
                         <label for="edit-footer-note-share">Footer Note Text (Share Page):</label>
-                        <textarea id="edit-footer-note-share" rows="2">Thank you for helping us improve our services.</textarea>
+                       <textarea id="edit-footer-note-share" rows="2"><?php echo htmlspecialchars($surveySettings['footer_note_text'] ?? 'Thank you for helping us improve our services.'); ?></textarea>
+
                         <div class="checkbox-group">
                             <label>
-                                <input type="checkbox" id="toggle-footer-note-share" checked> Show Footer Note
+                                <input type="checkbox" id="toggle-footer-note-share" <?php echo $surveySettings['show_footer_note_share'] ? 'checked' : ''; ?>> Show Footer Note
                             </label>
                         </div>
                     </div>
@@ -597,7 +772,7 @@ unset($option);   // Break the reference with the last element
             </div>
 
             <hr> <button onclick="savePreviewSettings()">Save Preview Settings</button>
-            <button onclick="resetPreviewSettings()">Reset Preview</button>
+          <button onclick="resetPreviewSettings()">Reset Preview</button> 
         </div>
     </div>
 
@@ -616,10 +791,13 @@ unset($option);   // Break the reference with the last element
 <script>
     // Pass the survey type from PHP to JavaScript
     const surveyType = "<?php echo $survey['type']; ?>"; // IMPORTANT: Get the actual type from PHP
+    const surveyId = "<?php echo $surveyId; ?>"; // Pass surveyId for saving
 
     document.addEventListener('DOMContentLoaded', function() {
-        // --- DOM Elements ---
-        // Elements for Survey Page (Preview)
+        // --- 1. DOM Element References ---
+        // Grouping related elements for clarity
+
+        // Branding & Appearance
         const logoImg = document.getElementById('moh-logo');
         const logoUpload = document.getElementById('logo-upload');
         const toggleLogo = document.getElementById('toggle-logo');
@@ -634,6 +812,7 @@ unset($option);   // Break the reference with the last element
         const toggleFlagBar = document.getElementById('toggle-flag-bar');
         const flagBarElement = document.getElementById('flag-bar');
 
+        // Survey Content
         const editTitle = document.getElementById('edit-title');
         const surveyTitle = document.getElementById('survey-title');
         const toggleTitle = document.getElementById('toggle-title');
@@ -642,37 +821,32 @@ unset($option);   // Break the reference with the last element
         const surveySubheading = document.getElementById('survey-subheading');
         const toggleSubheading = document.getElementById('toggle-subheading');
 
-        // Get elements for conditional sections in the control panel
-        const ratingInstructionsControlGroup = document.getElementById('rating-instructions-control-group');
-        const formSectionsAccordionItem = document.getElementById('form-sections-accordion-item');
-        const toggleFacilitySectionGroup = document.getElementById('toggle-facility-section-group');
-        const toggleLocationRowGeneralGroup = document.getElementById('toggle-location-row-general-group');
-        const toggleLocationRowPeriodAgeGroup = document.getElementById('toggle-location-row-period-age-group');
-        const toggleOwnershipSectionGroup = document.getElementById('toggle-ownership-section-group');
-
-        // Get elements for conditional sections in the actual preview form
-        const ratingInstruction1 = document.getElementById('rating-instruction-1');
-        const ratingInstruction2 = document.getElementById('rating-instruction-2');
-        const facilitySection = document.getElementById('facility-section');
-        const locationRowGeneral = document.getElementById('location-row-general');
-        const locationRowPeriodAge = document.getElementById('location-row-period-age');
-        const ownershipSection = document.getElementById('ownership-section');
+        const editRatingInstruction1 = document.getElementById('edit-rating-instruction-1'); // Can be null for DHIS2
+        const ratingInstruction1 = document.getElementById('rating-instruction-1'); // Can be null for DHIS2
+        const editRatingInstruction2 = document.getElementById('edit-rating-instruction-2'); // Can be null for DHIS2
+        const ratingInstruction2 = document.getElementById('rating-instruction-2'); // Can be null for DHIS2
+        const toggleRatingInstructions = document.getElementById('toggle-rating-instructions'); // Can be null for DHIS2
+        const ratingInstructionsControlGroup = document.getElementById('rating-instructions-control-group'); // Control panel group
 
 
-        const editRatingInstruction1 = document.getElementById('edit-rating-instruction-1');
-        const editRatingInstruction2 = document.getElementById('edit-rating-instruction-2');
-        const toggleRatingInstructions = document.getElementById('toggle-rating-instructions');
+        // Form Sections Visibility
+        const formSectionsAccordionItem = document.getElementById('form-sections-accordion-item'); // Control panel accordion item
+        const toggleFacilitySection = document.getElementById('toggle-facility-section'); // Can be null for DHIS2
+        const facilitySection = document.getElementById('facility-section'); // Can be null for DHIS2
 
+        const toggleLocationRowGeneral = document.getElementById('toggle-location-row-general'); // Can be null for DHIS2
+        const locationRowGeneral = document.getElementById('location-row-general'); // Can be null for DHIS2
 
-        const toggleFacilitySection = document.getElementById('toggle-facility-section');
-        const toggleLocationRowGeneral = document.getElementById('toggle-location-row-general');
-        const toggleLocationRowPeriodAge = document.getElementById('toggle-location-row-period-age');
-        const toggleOwnershipSection = document.getElementById('toggle-ownership-section');
+        const toggleLocationRowPeriodAge = document.getElementById('toggle-location-row-period-age'); // Can be null for DHIS2
+        const locationRowPeriodAge = document.getElementById('location-row-period-age'); // Can be null for DHIS2
+
+        const toggleOwnershipSection = document.getElementById('toggle-ownership-section'); // Can be null for DHIS2
+        const ownershipSection = document.getElementById('ownership-section'); // Can be null for DHIS2
 
         const toggleSubmitButton = document.getElementById('toggle-submit-button');
         const submitButtonPreview = document.getElementById('submit-button-preview');
 
-        // Elements for Share Page settings (and their preview on this page)
+        // Share Page Settings
         const logoUrlInput = document.getElementById('edit-logo-url');
         const toggleLogoUrl = document.getElementById('toggle-logo-url');
         const republicTitleElement = document.getElementById('republic-title');
@@ -689,174 +863,22 @@ unset($option);   // Break the reference with the last element
         const editFooterNoteShare = document.getElementById('edit-footer-note-share');
         const toggleFooterNoteShare = document.getElementById('toggle-footer-note-share');
 
-        // --- Functions ---
+
+        // --- 2. Helper Functions ---
 
         /**
-         * Applies conditional visibility to control panel sections and preview elements
-         * based on survey type.
+         * Displays a toast notification.
+         * @param {string} message - The message to display.
+         * @param {string} type - 'success' or 'error' to determine color and duration.
          */
-        function applyTypeSpecificControls() {
-            if (surveyType === 'dhis2') {
-                // Hide relevant groups in the control panel for DHIS2 surveys
-                if (formSectionsAccordionItem) formSectionsAccordionItem.classList.add('hidden-element');
-                if (ratingInstructionsControlGroup) ratingInstructionsControlGroup.classList.add('hidden-element');
-
-                // Ensure the preview elements themselves are also hidden for DHIS2
-                if (facilitySection) facilitySection.classList.add('hidden-element');
-                if (locationRowGeneral) locationRowGeneral.classList.add('hidden-element');
-                if (locationRowPeriodAge) locationRowPeriodAge.classList.add('hidden-element');
-                if (ownershipSection) ownershipSection.classList.add('hidden-element');
-                if (ratingInstruction1) ratingInstruction1.classList.add('hidden-element');
-                if (ratingInstruction2) ratingInstruction2.classList.add('hidden-element');
-
-                // Also ensure their corresponding checkboxes in the control panel are unchecked
-                if (toggleFacilitySection) toggleFacilitySection.checked = false;
-                if (toggleLocationRowGeneral) toggleLocationRowGeneral.checked = false;
-                if (toggleLocationRowPeriodAge) toggleLocationRowPeriodAge.checked = false;
-                if (toggleOwnershipSection) toggleOwnershipSection.checked = false;
-                if (toggleRatingInstructions) toggleRatingInstructions.checked = false;
-
-            } else if (surveyType === 'local') {
-                // Ensure they are visible in control panel for 'local' surveys
-                if (formSectionsAccordionItem) formSectionsAccordionItem.classList.remove('hidden-element');
-                if (ratingInstructionsControlGroup) ratingInstructionsControlGroup.classList.remove('hidden-element');
-                // The visibility of the preview elements themselves will be handled by loadPreviewSettings
-                // based on saved preferences, which is the correct behavior for 'local' surveys.
-            }
-            // Add conditions for other survey types if needed
-        }
-
-        /**
-         * Loads preview settings from localStorage and applies them to the DOM.
-         */
-        window.loadPreviewSettings = function() {
-            const settings = JSON.parse(localStorage.getItem('surveyPreviewSettings_<?php echo $surveyId; ?>')) || {};
-
-            // Preview Form Settings (Branding & Global)
-            logoImg.src = settings.logoSrc || 'asets/asets/img/loog.jpg'; // Default if not set
-            toggleLogo.checked = settings.showLogo !== undefined ? settings.showLogo : true;
-            logoSection.classList.toggle('hidden-element', !toggleLogo.checked);
-
-            flagBlackColorPicker.value = settings.flagBlackColor || '#000000';
-            flagBlackElement.style.backgroundColor = flagBlackColorPicker.value;
-            flagYellowColorPicker.value = settings.flagYellowColor || '#FCD116';
-            flagYellowElement.style.backgroundColor = flagYellowColorPicker.value;
-            flagRedColorPicker.value = settings.flagRedColor || '#D21034';
-            flagRedElement.style.backgroundColor = flagRedColorPicker.value;
-            toggleFlagBar.checked = settings.showFlagBar !== undefined ? settings.showFlagBar : true;
-            flagBarElement.classList.toggle('hidden-element', !toggleFlagBar.checked);
-
-            editTitle.value = settings.titleText || '<?php echo $defaultSurveyTitle; ?>';
-            surveyTitle.textContent = editTitle.value;
-            toggleTitle.checked = settings.showTitle !== undefined ? settings.showTitle : true;
-            surveyTitle.classList.toggle('hidden-element', !toggleTitle.checked);
-
-            editSubheading.value = settings.subheadingText || '<?php echo htmlspecialchars($translations['subheading'] ?? 'This tool is used to obtain clients\' feedback about their experience with the services and promote quality improvement, accountability, and transparency within the healthcare system.'); ?>';
-            surveySubheading.textContent = editSubheading.value;
-            toggleSubheading.checked = settings.showSubheading !== undefined ? settings.showSubheading : true;
-            surveySubheading.classList.toggle('hidden-element', !toggleSubheading.checked);
-
-            // Conditional Form Section Settings (only apply if type is 'local' or if settings exist)
-            // It's crucial here: if surveyType is 'dhis2', these elements are already hidden by applyTypeSpecificControls()
-            // and we don't want loadPreviewSettings to make them visible again based on old saved settings.
-            if (surveyType === 'local') {
-                editRatingInstruction1.value = settings.ratingInstruction1Text || '<?php echo htmlspecialchars($translations['rating_instruction'] ?? '1. Please rate each of the following parameters according to your experience today on a scale of 1 to 4.'); ?>';
-                ratingInstruction1.textContent = editRatingInstruction1.value;
-                editRatingInstruction2.value = settings.ratingInstruction2Text || '<?php echo htmlspecialchars($translations['rating_scale'] ?? 'where \'0\' means Poor, \'1\' Fair, \'2\' Good and \'3\' Excellent'); ?>';
-                ratingInstruction2.textContent = editRatingInstruction2.value;
-                toggleRatingInstructions.checked = settings.showRatingInstructions !== undefined ? settings.showRatingInstructions : true;
-                ratingInstruction1.classList.toggle('hidden-element', !toggleRatingInstructions.checked);
-                ratingInstruction2.classList.toggle('hidden-element', !toggleRatingInstructions.checked);
-
-                toggleFacilitySection.checked = settings.showFacilitySection !== undefined ? settings.showFacilitySection : true;
-                facilitySection.classList.toggle('hidden-element', !toggleFacilitySection.checked);
-
-                toggleLocationRowGeneral.checked = settings.showLocationRowGeneral !== undefined ? settings.showLocationRowGeneral : true;
-                locationRowGeneral.classList.toggle('hidden-element', !toggleLocationRowGeneral.checked);
-
-                toggleLocationRowPeriodAge.checked = settings.showLocationRowPeriodAge !== undefined ? settings.showLocationRowPeriodAge : true;
-                locationRowPeriodAge.classList.toggle('hidden-element', !toggleLocationRowPeriodAge.checked);
-
-                toggleOwnershipSection.checked = settings.showOwnershipSection !== undefined ? settings.showOwnershipSection : true;
-                ownershipSection.classList.toggle('hidden-element', !toggleOwnershipSection.checked);
-            }
-
-
-            toggleSubmitButton.checked = settings.showSubmitButton !== undefined ? settings.showSubmitButton : true;
-            submitButtonPreview.classList.toggle('hidden-element', !toggleSubmitButton.checked);
-
-            // Share Page Settings (also affect local preview of these elements if present)
-            logoUrlInput.value = settings.logoUrl || logoImg.src;
-            toggleLogoUrl.checked = settings.showLogoUrl !== undefined ? settings.showLogoUrl : true;
-            editRepublicTitleShare.value = settings.republicTitleText || 'THE REPUBLIC OF UGANDA';
-            republicTitleElement.textContent = editRepublicTitleShare.value;
-            toggleRepublicTitleShare.checked = settings.showRepublicTitleShare !== undefined ? settings.showRepublicTitleShare : true;
-            republicTitleElement.classList.toggle('hidden-element', !toggleRepublicTitleShare.checked);
-
-            editMinistrySubtitleShare.value = settings.ministrySubtitleText || 'MINISTRY OF HEALTH';
-            ministrySubtitleElement.textContent = editMinistrySubtitleShare.value;
-            toggleMinistrySubtitleShare.checked = settings.showMinistrySubtitleShare !== undefined ? settings.showMinistrySubtitleShare : true;
-            ministrySubtitleElement.classList.toggle('hidden-element', !toggleMinistrySubtitleShare.checked);
-
-            editQrInstructionsShare.value = settings.qrInstructionsText || 'Scan this QR Code to Give Your Feedback on Services Received';
-            toggleQrInstructionsShare.checked = settings.showQrInstructionsShare !== undefined ? settings.showQrInstructionsShare : true;
-
-            editFooterNoteShare.value = settings.footerNoteText || 'Thank you for helping us improve our services.';
-            toggleFooterNoteShare.checked = settings.showFooterNoteShare !== undefined ? settings.showFooterNoteShare : true;
-        };
-
-        /**
-         * Saves all current preview and share page settings to localStorage.
-         */
-        window.savePreviewSettings = function() {
-            const settings = {
-                // Preview Form Settings (Branding & Global)
-                logoSrc: logoImg.src,
-                showLogo: toggleLogo.checked,
-                flagBlackColor: flagBlackColorPicker.value,
-                flagYellowColor: flagYellowColorPicker.value,
-                flagRedColor: flagRedColorPicker.value,
-                showFlagBar: toggleFlagBar.checked,
-                titleText: editTitle.value,
-                showTitle: toggleTitle.checked,
-                subheadingText: editSubheading.value,
-                showSubheading: toggleSubheading.checked,
-                showSubmitButton: toggleSubmitButton.checked,
-
-                // Conditional Form Section Settings (only save if type is 'local')
-                // This prevents saving irrelevant settings for DHIS2 surveys
-                ...(surveyType === 'local' && {
-                    ratingInstruction1Text: editRatingInstruction1.value,
-                    ratingInstruction2Text: editRatingInstruction2.value,
-                    showRatingInstructions: toggleRatingInstructions.checked,
-                    showFacilitySection: toggleFacilitySection.checked,
-                    showLocationRowGeneral: toggleLocationRowGeneral.checked,
-                    showLocationRowPeriodAge: toggleLocationRowPeriodAge.checked,
-                    showOwnershipSection: toggleOwnershipSection.checked,
-                }),
-
-
-                // Share Page Settings (always save these as they are universal for the share page)
-                logoUrl: logoUrlInput.value,
-                showLogoUrl: toggleLogoUrl.checked,
-                republicTitleText: editRepublicTitleShare.value,
-                showRepublicTitleShare: toggleRepublicTitleShare.checked,
-                ministrySubtitleText: editMinistrySubtitleShare.value,
-                showMinistrySubtitleShare: toggleMinistrySubtitleShare.checked,
-                qrInstructionsText: editQrInstructionsShare.value,
-                showQrInstructionsShare: toggleQrInstructionsShare.checked,
-                footerNoteText: editFooterNoteShare.value,
-                showFooterNoteShare: toggleFooterNoteShare.checked
-            };
-            localStorage.setItem('surveyPreviewSettings_<?php echo $surveyId; ?>', JSON.stringify(settings));
-            // Show a styled toast notification instead of alert
+        function showToast(message, type = 'success') {
             let toast = document.createElement('div');
-            toast.textContent = 'Preview settings saved!';
+            toast.textContent = message;
             toast.style.position = 'fixed';
             toast.style.bottom = '180px';
             toast.style.left = '50%';
             toast.style.transform = 'translateX(-50%)';
-            toast.style.background = 'orange';
+            toast.style.background = type === 'success' ? 'green' : 'red';
             toast.style.color = '#fff';
             toast.style.padding = '12px 28px';
             toast.style.borderRadius = '6px';
@@ -871,18 +893,141 @@ unset($option);   // Break the reference with the last element
             setTimeout(() => {
                 toast.style.opacity = '0';
                 setTimeout(() => { document.body.removeChild(toast); }, 400);
-            }, 1800);
-        };
+            }, type === 'success' ? 1800 : 3000); // Shorter for success, longer for error
+        }
+
+        // --- 3. Core Logic Functions ---
 
         /**
-         * Resets all settings for the current survey ID by clearing localStorage and reloading the page.
+         * Applies conditional visibility to control panel sections and preview elements
+         * based on survey type. This ensures DHIS2-specific fields are hidden.
          */
-        window.resetPreviewSettings = function() {
-            localStorage.removeItem('surveyPreviewSettings_<?php echo $surveyId; ?>');
-            location.reload(); // Reload page to revert to PHP defaults and re-load initial state
+        function applyTypeSpecificControls() {
+            if (surveyType === 'dhis2') {
+                // Hide relevant groups in the control panel for DHIS2 surveys
+                if (formSectionsAccordionItem) formSectionsAccordionItem.classList.add('hidden-element');
+                if (ratingInstructionsControlGroup) ratingInstructionsControlGroup.classList.add('hidden-element');
+
+                // Ensure the preview elements themselves are also hidden for DHIS2
+                if (facilitySection) facilitySection.classList.add('hidden-element');
+                if (locationRowGeneral) locationRowGeneral.classList.add('hidden-element');
+                if (locationRowPeriodAge) locationRowPeriodAge.classList.add('hidden-element');
+                if (ownershipSection) ownershipSection.classList.add('hidden-element');
+                if (ratingInstruction1) ratingInstruction1.classList.add('hidden-element');
+                if (ratingInstruction2) ratingInstruction2.classList.add('hidden-element');
+            } else if (surveyType === 'local') {
+                // Ensure they are visible in control panel for 'local' surveys
+                if (formSectionsAccordionItem) formSectionsAccordionItem.classList.remove('hidden-element');
+                if (ratingInstructionsControlGroup) ratingInstructionsControlGroup.classList.remove('hidden-element');
+                // Visibility of preview elements is managed by initial PHP render and save/load logic.
+            }
+        }
+
+        /**
+         * Gathers all current preview and share page settings from the DOM
+         * and sends them to the database via AJAX.
+         */
+        window.savePreviewSettings = async function() {
+            // Collect settings from the DOM elements
+            const settings = {
+                surveyId: surveyId,
+                logoSrc: logoImg.src, // This will be a Data URL for new uploads or a path for existing
+                showLogo: toggleLogo.checked,
+                flagBlackColor: flagBlackColorPicker.value,
+                flagYellowColor: flagYellowColorPicker.value,
+                flagRedColor: flagRedColorPicker.value,
+                showFlagBar: toggleFlagBar.checked,
+                titleText: editTitle.value,
+                showTitle: toggleTitle.checked,
+                subheadingText: editSubheading.value,
+                showSubheading: toggleSubheading.checked,
+                showSubmitButton: toggleSubmitButton.checked,
+
+                // Conditional checks for elements that might not exist based on surveyType
+                ratingInstruction1Text: editRatingInstruction1 ? editRatingInstruction1.value : '',
+                ratingInstruction2Text: editRatingInstruction2 ? editRatingInstruction2.value : '',
+                showRatingInstructions: toggleRatingInstructions ? toggleRatingInstructions.checked : false,
+                showFacilitySection: toggleFacilitySection ? toggleFacilitySection.checked : false,
+                showLocationRowGeneral: toggleLocationRowGeneral ? toggleLocationRowGeneral.checked : false,
+                showLocationRowPeriodAge: toggleLocationRowPeriodAge ? toggleLocationRowPeriodAge.checked : false,
+                showOwnershipSection: toggleOwnershipSection ? toggleOwnershipSection.checked : false,
+
+                // Share Page Settings
+                republicTitleText: editRepublicTitleShare.value,
+                showRepublicTitleShare: toggleRepublicTitleShare.checked,
+                ministrySubtitleText: editMinistrySubtitleShare.value,
+                showMinistrySubtitleShare: toggleMinistrySubtitleShare.checked,
+                qrInstructionsText: editQrInstructionsShare.value,
+                showQrInstructionsShare: toggleQrInstructionsShare.checked,
+                footerNoteText: editFooterNoteShare.value,
+                showFooterNoteShare: toggleFooterNoteShare.checked,
+                // Note: logoUrl and toggleLogoUrl are implicitly handled by logoSrc and showLogo
+                // We map toggleLogoUrl to showLogo for consistency with the DB column `show_logo`
+                // If you need separate control for share page logo, a new DB column would be required.
+            };
+
+            try {
+                const response = await fetch('save_survey_settings.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify(settings)
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || 'Failed to save settings due to a server error.');
+                }
+
+                showToast(data.message, 'success');
+
+            } catch (error) {
+                console.error('Error saving settings:', error);
+                showToast(error.message || 'An unexpected error occurred while saving.', 'error');
+            }
         };
 
-        // --- Event Listeners for Live Preview Updates ---
+      window.resetPreviewSettings = async function() {
+    if (!confirm('Are you sure you want to reset all preview settings to their default values? This cannot be undone.')) {
+        return; // User cancelled
+    }
+
+    try {
+        // Send a POST request to the new reset endpoint
+        const response = await fetch('reset_survey_settings.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded', // Standard form data
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            // Send survey_id as URL-encoded form data
+            body: `survey_id=${encodeURIComponent(surveyId)}`
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || 'Failed to reset settings due to a server error.');
+        }
+
+        // Show success toast
+        showToast(data.message, 'success');
+
+        // Wait a moment for the toast to be seen, then reload the page
+        setTimeout(() => {
+            location.reload();
+        }, 1000); // Reload after 1 second
+
+    } catch (error) {
+        console.error('Error resetting settings:', error);
+        showToast(error.message || 'An unexpected error occurred while resetting.', 'error');
+    }
+};
+
+        // --- 4. Event Listeners for Live Preview Updates ---
 
         // Logo upload and URL input sync
         logoUpload.addEventListener('change', function(event) {
@@ -891,7 +1036,7 @@ unset($option);   // Break the reference with the last element
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     logoImg.src = e.target.result;
-                    logoUrlInput.value = e.target.result; // Update URL input for share settings
+                    logoUrlInput.value = e.target.result; // Update URL input for share settings preview
                 };
                 reader.readAsDataURL(file);
             }
@@ -900,7 +1045,16 @@ unset($option);   // Break the reference with the last element
         // Toggle Logo visibility
         toggleLogo.addEventListener('change', function() {
             logoSection.classList.toggle('hidden-element', !this.checked);
+            // Also update the share page logo URL input checkbox if it's supposed to sync
+            if (toggleLogoUrl) toggleLogoUrl.checked = this.checked;
         });
+        if (toggleLogoUrl) { // Sync toggleLogoUrl with toggleLogo if they are meant to be linked
+            toggleLogoUrl.addEventListener('change', function() {
+                if (toggleLogo) toggleLogo.checked = this.checked;
+                logoSection.classList.toggle('hidden-element', !this.checked);
+            });
+        }
+
 
         // Flag Bar Color Pickers
         flagBlackColorPicker.addEventListener('input', function() { flagBlackElement.style.backgroundColor = this.value; });
@@ -918,42 +1072,45 @@ unset($option);   // Break the reference with the last element
 
         // Rating Instructions (only if applicable for local surveys)
         if (surveyType === 'local') {
-            editRatingInstruction1.addEventListener('input', function() { ratingInstruction1.textContent = this.value; });
-            editRatingInstruction2.addEventListener('input', function() { ratingInstruction2.textContent = this.value; });
-            toggleRatingInstructions.addEventListener('change', function() {
-                ratingInstruction1.classList.toggle('hidden-element', !this.checked);
-                ratingInstruction2.classList.toggle('hidden-element', !this.checked);
+            if (editRatingInstruction1) editRatingInstruction1.addEventListener('input', function() { ratingInstruction1.textContent = this.value; });
+            if (editRatingInstruction2) editRatingInstruction2.addEventListener('input', function() { ratingInstruction2.textContent = this.value; });
+            if (toggleRatingInstructions) toggleRatingInstructions.addEventListener('change', function() {
+                if (ratingInstruction1) ratingInstruction1.classList.toggle('hidden-element', !this.checked);
+                if (ratingInstruction2) ratingInstruction2.classList.toggle('hidden-element', !this.checked);
             });
         }
 
         // Section Visibility Toggles (only if applicable for local surveys)
         if (surveyType === 'local') {
-            toggleFacilitySection.addEventListener('change', function() { facilitySection.classList.toggle('hidden-element', !this.checked); });
-            toggleLocationRowGeneral.addEventListener('change', function() { locationRowGeneral.classList.toggle('hidden-element', !this.checked); });
-            toggleLocationRowPeriodAge.addEventListener('change', function() { locationRowPeriodAge.classList.toggle('hidden-element', !this.checked); });
-            toggleOwnershipSection.addEventListener('change', function() { ownershipSection.classList.toggle('hidden-element', !this.checked); });
+            if (toggleFacilitySection) toggleFacilitySection.addEventListener('change', function() { if (facilitySection) facilitySection.classList.toggle('hidden-element', !this.checked); });
+            if (toggleLocationRowGeneral) toggleLocationRowGeneral.addEventListener('change', function() { if (locationRowGeneral) locationRowGeneral.classList.toggle('hidden-element', !this.checked); });
+            if (toggleLocationRowPeriodAge) toggleLocationRowPeriodAge.addEventListener('change', function() { if (locationRowPeriodAge) locationRowPeriodAge.classList.toggle('hidden-element', !this.checked); });
+            if (toggleOwnershipSection) toggleOwnershipSection.addEventListener('change', function() { if (ownershipSection) ownershipSection.classList.toggle('hidden-element', !this.checked); });
         }
 
         toggleSubmitButton.addEventListener('change', function() { submitButtonPreview.classList.toggle('hidden-element', !this.checked); });
 
         // Share Page Element Listeners (for their preview on this page)
-        toggleLogoUrl.addEventListener('change', function() { /* No direct preview element on this page to toggle */ });
+        // These don't have direct live preview elements on *this* page that change content,
+        // but their visibility toggles affect how they *would* appear on the share page.
+        // We ensure their corresponding elements in the preview are toggled if they exist.
         editRepublicTitleShare.addEventListener('input', function() { republicTitleElement.textContent = this.value; });
         toggleRepublicTitleShare.addEventListener('change', function() { republicTitleElement.classList.toggle('hidden-element', !this.checked); });
         editMinistrySubtitleShare.addEventListener('input', function() { ministrySubtitleElement.textContent = this.value; });
         toggleMinistrySubtitleShare.addEventListener('change', function() { ministrySubtitleElement.classList.toggle('hidden-element', !this.checked); });
-        editQrInstructionsShare.addEventListener('input', function() { /* No direct preview element on this page */ });
-        toggleQrInstructionsShare.addEventListener('change', function() { /* No direct preview element on this page to toggle */ });
-        editFooterNoteShare.addEventListener('input', function() { /* No direct preview element on this page */ });
-        toggleFooterNoteShare.addEventListener('change', function() { /* No direct preview element on this page to toggle */ });
+        // editQrInstructionsShare & editFooterNoteShare don't have corresponding elements on preview_form.php
+        // but their values are still collected and sent to DB.
+        // The toggles for these (toggleQrInstructionsShare, toggleFooterNoteShare) control visibility
+        // on the share page itself, not this preview page.
 
-        // --- Accordion Logic ---
+        // --- 5. Accordion Logic ---
         const accordionHeaders = document.querySelectorAll('.accordion-header');
         accordionHeaders.forEach(header => {
             header.addEventListener('click', function() {
                 const content = this.nextElementSibling;
                 const icon = this.querySelector('i');
 
+                // Close other open accordions
                 accordionHeaders.forEach(otherHeader => {
                     if (otherHeader !== this && otherHeader.classList.contains('active')) {
                         otherHeader.classList.remove('active');
@@ -972,24 +1129,54 @@ unset($option);   // Break the reference with the last element
             });
         });
 
-        // --- Initial Load ---
-        applyTypeSpecificControls(); // Apply type-specific visibility first
-        loadPreviewSettings();      // Then load saved settings (which might override visibility for 'local')
+        // --- 6. Initial Setup & Share Button ---
 
-        // --- Share Button Functionality ---
-        document.getElementById('share-btn').addEventListener('click', function() {
-            savePreviewSettings();
+        // Apply type-specific visibility first (e.g., hide DHIS2-only sections)
+        applyTypeSpecificControls();
 
-            // Always use survey_page.php for share, as per your requirement
-            const surveyUrl = window.location.origin + '/fbs/admin/survey_page.php?survey_id=<?php echo $surveyId; ?>';
+        // The loadPreviewSettings function from previous steps primarily loaded from localStorage.
+        // Now, PHP handles the initial rendering of settings directly from the DB.
+        // This function can be simplified or removed, as its original purpose is fulfilled by PHP.
+        // If you need it to re-apply states after some client-side manipulation, you'd modify it.
+        // For now, it will simply ensure existing elements visibility matches the DOM state from PHP.
+        window.loadPreviewSettings = function() {
+            // Re-apply visibility based on the initial PHP-rendered checked states
+            logoSection.classList.toggle('hidden-element', !toggleLogo.checked);
+            flagBarElement.classList.toggle('hidden-element', !toggleFlagBar.checked);
+            surveyTitle.classList.toggle('hidden-element', !toggleTitle.checked);
+            surveySubheading.classList.toggle('hidden-element', !toggleSubheading.checked);
+
+            if (surveyType === 'local') {
+                if (ratingInstruction1) ratingInstruction1.classList.toggle('hidden-element', !toggleRatingInstructions.checked);
+                if (ratingInstruction2) ratingInstruction2.classList.toggle('hidden-element', !toggleRatingInstructions.checked);
+                if (facilitySection) facilitySection.classList.toggle('hidden-element', !toggleFacilitySection.checked);
+                if (locationRowGeneral) locationRowGeneral.classList.toggle('hidden-element', !toggleLocationRowGeneral.checked);
+                if (locationRowPeriodAge) locationRowPeriodAge.classList.toggle('hidden-element', !toggleLocationRowPeriodAge.checked);
+                if (ownershipSection) ownershipSection.classList.toggle('hidden-element', !toggleOwnershipSection.checked);
+            }
+
+            submitButtonPreview.classList.toggle('hidden-element', !toggleSubmitButton.checked);
+            republicTitleElement.classList.toggle('hidden-element', !toggleRepublicTitleShare.checked);
+            ministrySubtitleElement.classList.toggle('hidden-element', !toggleMinistrySubtitleShare.checked);
+        };
+        window.loadPreviewSettings(); // Call on initial load to set visibility based on PHP's initial checked states
+
+
+        // Share Button functionality: Save settings, then redirect
+        document.getElementById('share-btn').addEventListener('click', async function() {
+            // Await the save operation to complete before redirecting
+            await window.savePreviewSettings();
+
+            // Construct the URL for the survey page (QR code generation page)
+            const surveyUrl = window.location.origin + '/fbs/admin/survey_page.php?survey_id=' + surveyId;
 
             // Redirect to share_page.php, passing the constructed surveyUrl
-            window.location.href = `share_page.php?survey_id=<?php echo $surveyId; ?>&url=${encodeURIComponent(surveyUrl)}`;
+            window.location.href = `share_page.php?survey_id=${surveyId}&url=${encodeURIComponent(surveyUrl)}`;
         });
     });
 </script>
 
 <script defer src="survey_page.js"></script>
-<script defer src="translations.js"></script>
+<!-- <script defer src="translations.js"></script> -->
 </body>
 </html>

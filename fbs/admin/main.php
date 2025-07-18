@@ -402,8 +402,8 @@ $avgResponseLength = round($avgResponseLength['avg_length'] ?? 0, 1);
             </div>
         </div>
     </div>
-
-    <?php include 'components/fixednav.php'; ?>
+<!-- 
+    <?php include 'components/fixednav.php'; ?> -->
 
     <script src="argon-dashboard-master/assets/js/core/popper.min.js"></script>
     <script src="argon-dashboard-master/assets/js/core/bootstrap.min.js"></script>
@@ -419,7 +419,7 @@ $avgResponseLength = round($avgResponseLength['avg_length'] ?? 0, 1);
         // Survey Participation Chart (Bar Chart for better comparison)
         const ctx1 = document.getElementById('surveyChart').getContext('2d');
         new Chart(ctx1, {
-            type: 'radar', // Changed to bar for better comparison of submissions
+            type: 'bar', // Changed to bar for better comparison of submissions
             data: {
                 labels: <?= json_encode($chartLabels) ?>,
                 datasets: [{
