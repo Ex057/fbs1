@@ -47,8 +47,8 @@ if (!$submission) {
 // IMPORTANT: Get survey_id directly from the submission if possible
 $surveyId = $submission['survey_id'] ?? $surveyIdFromSession;
 
-// Initialize facility name to a default
-$facilityName = 'Not specified';
+// Initialize facility name to a default that will be used for checking if it's "specified"
+$facilityName = null; // Changed to null for stricter check
 $facilityId = $submission['location_id']; // Get location_id from submission
 
 // Conditionally fetch facility name ONLY if facilityId is not null
@@ -81,12 +81,12 @@ if ($surveyId) {
     }
 }
 
-$serviceUnitName = 'Not specified'; // Initialize to default
-$ownershipName = 'Not specified'; // Initialize to default
+$serviceUnitName = null; // Changed to null for stricter check
+$ownershipName = null; // Changed to null for stricter check
 
-$age = $submission['age'] ?? 'Not specified';
-$sex = $submission['sex'] ?? 'Not specified';
-$period = $submission['period'] ?? date('Y-m-d'); // Default to current date if not specified
+$age = $submission['age'] ?? null; // Changed to null for stricter check
+$sex = $submission['sex'] ?? null; // Changed to null for stricter check
+$period = $submission['period'] ?? null; // Changed to null for stricter check
 
 // Only fetch these specific details if the survey type is 'local' AND the IDs are not null
 if ($surveyType === 'local') {
@@ -380,31 +380,44 @@ $conn->close();
                         <th>Reference ID</th>
                         <td><?php echo htmlspecialchars($uid); ?></td>
                     </tr>
+                    <?php if ($facilityName !== null): ?>
                     <tr>
                         <th>Facility</th>
                         <td><?php echo htmlspecialchars($facilityName); ?></td>
                     </tr>
+                    <?php endif; ?>
+
                     <?php if ($surveyType === 'local'): // Conditionally display for 'local' ?>
+                        <?php if ($serviceUnitName !== null): ?>
                         <tr id="serviceUnitRow">
                             <th>Service Unit</th>
                             <td><?php echo htmlspecialchars($serviceUnitName); ?></td>
                         </tr>
+                        <?php endif; ?>
+                        <?php if ($age !== null): ?>
                         <tr id="ageRow">
                             <th>Age</th>
                             <td><?php echo htmlspecialchars($age); ?></td>
                         </tr>
+                        <?php endif; ?>
+                        <?php if ($sex !== null): ?>
                         <tr id="sexRow">
                             <th>Sex</th>
                             <td><?php echo htmlspecialchars($sex); ?></td>
                         </tr>
+                        <?php endif; ?>
+                        <?php if ($period !== null): ?>
                         <tr id="dateRow">
                             <th>Date</th>
                             <td><?php echo htmlspecialchars(date('d/m/Y', strtotime($period))); ?></td>
                         </tr>
+                        <?php endif; ?>
+                        <?php if ($ownershipName !== null): ?>
                         <tr id="ownershipRow">
                             <th>Ownership</th>
                             <td><?php echo htmlspecialchars($ownershipName); ?></td>
                         </tr>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </table>
             </div>
@@ -455,6 +468,7 @@ $conn->close();
 
 
             // --- DOM Elements for Conditional Submission Details (for JavaScript control if needed) ---
+            // These are now less critical for hiding as PHP handles it, but kept for consistency
             const serviceUnitRow = document.getElementById('serviceUnitRow');
             const ageRow = document.getElementById('ageRow');
             const sexRow = document.getElementById('sexRow');
@@ -519,17 +533,10 @@ $conn->close();
                     surveyTitleThankYou.textContent = settings.titleText || 'CLIENT SATISFACTION FEEDBACK TOOL';
                 }
 
-                // --- Conditional Display of Submission Details (PHP already handles initial render) ---
-                // This JS part is mainly to handle any edge cases or if PHP logic needs reinforcement
-                if (surveyType === 'dhis2') {
-                    if (serviceUnitRow) serviceUnitRow.classList.add('hidden-element');
-                    if (ageRow) ageRow.classList.add('hidden-element');
-                    if (sexRow) sexRow.classList.add('hidden-element');
-                    if (dateRow) dateRow.classList.add('hidden-element');
-                    if (ownershipRow) ownershipRow.classList.add('hidden-element');
-                }
-                // For 'local' type, PHP already ensures these rows are present.
-                // Their visibility is solely controlled by the 'View Your Responses' button.
+                // No need for specific JavaScript logic to hide the rows if null for surveyType 'dhis2'
+                // because the PHP now completely omits the <tr> if the value is null.
+                // The PHP conditional for `$surveyType === 'local'` already handles whether these fields
+                // are considered at all.
             }
 
             // --- Initial Load ---
