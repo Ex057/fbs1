@@ -290,7 +290,7 @@ $qrUrl = $surveyUrl ? $surveyUrl : (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'
             color: var(--primary-blue);
         }
 
-        .download-button {
+        .go-to-survey-button { /* Changed class name for clarity */
             margin-top: 30px;
             padding: 14px 30px;
             background-color: var(--primary-blue);
@@ -305,16 +305,17 @@ $qrUrl = $surveyUrl ? $surveyUrl : (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'
             gap: 12px;
             transition: all 0.3s ease;
             box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+            text-decoration: none; /* Add this for anchor tag styling */
         }
 
-        .download-button:hover {
+        .go-to-survey-button:hover {
             background-color: var(--dark-blue);
             transform: translateY(-3px);
             box-shadow: 0 6px 18px rgba(0, 123, 255, 0.4);
             text-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
 
-        .download-button:active {
+        .go-to-survey-button:active {
             transform: translateY(0);
             box-shadow: 0 2px 5px rgba(0, 123, 255, 0.2);
         }
@@ -360,7 +361,7 @@ $qrUrl = $surveyUrl ? $surveyUrl : (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'
                 font-size: 17px;
             }
 
-            .download-button {
+            .go-to-survey-button { /* Changed class name */
                 font-size: 16px;
                 padding: 12px 25px;
             }
@@ -395,9 +396,9 @@ $qrUrl = $surveyUrl ? $surveyUrl : (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'
                 <span><?php echo htmlspecialchars($surveySettings['qr_instructions_text'] ?? 'Scan this QR Code to Give Your Feedback<br>on Services Received'); ?></span>
             </div>
 
-            <button class="download-button" onclick="downloadPage()">
-                <i class="fas fa-download"></i> Download Feedback Page
-            </button>
+            <a href="<?php echo htmlspecialchars($qrUrl); ?>" class="go-to-survey-button">
+                <i class="fas fa-external-link-alt"></i> Go to Survey Page
+            </a>
         </div>
 
         <div class="footer-note" id="footer-note-text" style="display: <?php echo ($surveySettings['show_footer_note_share'] ?? true) ? 'block' : 'none'; ?>;">
@@ -406,12 +407,11 @@ $qrUrl = $surveyUrl ? $surveyUrl : (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script>
         // Data passed from PHP
         const phpSurveyId = <?php echo json_encode($surveyId); ?>;
         const phpSurveyUrl = <?php echo json_encode($qrUrl); ?>; // This is the URL for the QR code
-        const phpSurveySettings = <?php echo json_encode($surveySettings); ?>; // Pass all settings for download function
+        const phpSurveySettings = <?php echo json_encode($surveySettings); ?>; // Pass all settings for potential future use
 
         document.addEventListener('DOMContentLoaded', function() {
             // Generate QR code
@@ -432,117 +432,9 @@ $qrUrl = $surveyUrl ? $surveyUrl : (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'
             // No additional JS needed here to apply visual changes on page load.
         });
 
-        // --- Download Page Function ---
-        function downloadPage() {
-            const getAllCssRules = () => {
-                let css = '';
-                Array.from(document.styleSheets).forEach(sheet => {
-                    try {
-                        if (sheet.href === null || sheet.href.startsWith(window.location.origin)) {
-                            Array.from(sheet.cssRules || sheet.rules).forEach(rule => {
-                                css += rule.cssText + '\n';
-                            });
-                        } else {
-                            console.warn('Skipping cross-origin stylesheet:', sheet.href);
-                        }
-                    } catch (e) {
-                        console.warn('Could not read CSS from sheet:', sheet.href || sheet.ownerNode, e);
-                    }
-                });
-                return css;
-            };
-
-            const inlineCss = getAllCssRules();
-
-            const qrCodeCanvas = document.querySelector('#qr-code canvas');
-            const qrCodeImgSrc = qrCodeCanvas ? qrCodeCanvas.toDataURL('image/png') : '';
-
-            const containerToDownload = document.querySelector('.feedback-container').cloneNode(true);
-            const downloadBtn = containerToDownload.querySelector('.download-button');
-            if (downloadBtn) {
-                downloadBtn.remove();
-            }
-
-            const qrCodeDivInCloned = containerToDownload.querySelector('#qr-code');
-            if (qrCodeDivInCloned && qrCodeImgSrc) {
-                qrCodeDivInCloned.innerHTML = `<img src="${qrCodeImgSrc}" alt="QR Code" style="width:200px; height:200px; display:block; margin: 0 auto;">`; // Added margin: 0 auto for centering
-            }
-
-            // --- Inject PHP-provided settings into the cloned HTML for static download ---
-            // This is needed for the downloaded HTML file, as it won't execute PHP.
-            // The main page already uses these directly.
-            const clonedLogoContainer = containerToDownload.querySelector('.logo-container');
-            if (clonedLogoContainer) {
-                clonedLogoContainer.style.display = (phpSurveySettings.show_logo ?? true) ? 'flex' : 'none';
-                const clonedLogoImg = clonedLogoContainer.querySelector('#moh-logo');
-                if (clonedLogoImg) clonedLogoImg.src = phpSurveySettings.logo_path || 'asets/asets/img/loog.jpg';
-            }
-
-            const clonedRepublicTitle = containerToDownload.querySelector('#republic-title-share');
-            if (clonedRepublicTitle) {
-                clonedRepublicTitle.textContent = phpSurveySettings.republic_title_text || 'THE REPUBLIC OF UGANDA';
-                clonedRepublicTitle.style.display = (phpSurveySettings.show_republic_title_share ?? true) ? 'block' : 'none';
-            }
-
-            const clonedMinistrySubtitle = containerToDownload.querySelector('#ministry-subtitle-share');
-            if (clonedMinistrySubtitle) {
-                clonedMinistrySubtitle.textContent = phpSurveySettings.ministry_subtitle_text || 'MINISTRY OF HEALTH';
-                clonedMinistrySubtitle.style.display = (phpSurveySettings.show_ministry_subtitle_share ?? true) ? 'block' : 'none';
-            }
-
-            const clonedFlagBar = containerToDownload.querySelector('#flag-bar-share');
-            if (clonedFlagBar) {
-                clonedFlagBar.style.display = (phpSurveySettings.show_flag_bar ?? true) ? 'flex' : 'none';
-                clonedFlagBar.querySelector('.flag-black').style.backgroundColor = phpSurveySettings.flag_black_color || '#000000';
-                clonedFlagBar.querySelector('.flag-yellow').style.backgroundColor = phpSurveySettings.flag_yellow_color || '#FFCE00';
-                clonedFlagBar.querySelector('.flag-red').style.backgroundColor = phpSurveySettings.flag_red_color || '#FF0000';
-            }
-
-            const clonedTitleH1 = containerToDownload.querySelector('h1');
-            if (clonedTitleH1) {
-                clonedTitleH1.textContent = phpSurveySettings.title_text || document.title.replace('Share Survey: ', '');
-            }
-
-            const clonedInstructions = containerToDownload.querySelector('#qr-instructions-text');
-            if (clonedInstructions) {
-                clonedInstructions.querySelector('span').textContent = phpSurveySettings.qr_instructions_text || 'Scan this QR Code to Give Your Feedback\non Services Received';
-                clonedInstructions.style.display = (phpSurveySettings.show_qr_instructions_share ?? true) ? 'flex' : 'none';
-            }
-
-            const clonedFooterNote = containerToDownload.querySelector('#footer-note-text');
-            if (clonedFooterNote) {
-                clonedFooterNote.textContent = phpSurveySettings.footer_note_text || 'Thank you for helping us improve our services.';
-                clonedFooterNote.style.display = (phpSurveySettings.show_footer_note_share ?? true) ? 'block' : 'none';
-            }
-            // --- END INJECT ---
-
-
-            const htmlContent = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${document.title}</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        ${inlineCss}
-    </style>
-</head>
-<body>
-    ${containerToDownload.outerHTML}
-</body>
-</html>`;
-
-            const blob = new Blob([htmlContent], { type: 'text/html' });
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = `QR_Code_Feedback_Survey_${phpSurveyId}.html`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(a.href);
-        }
+        // The downloadPage function is no longer needed since we are redirecting directly.
+        // You can remove it entirely if it's not used elsewhere.
+        // If you need the download functionality for something else, keep it but remove the button's onclick attribute.
     </script>
 </body>
 </html>
